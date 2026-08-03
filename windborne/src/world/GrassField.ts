@@ -45,7 +45,7 @@ export class GrassField {
   readonly group = new THREE.Group();
 
   private readonly config: GrassFieldConfig;
-  private readonly material: THREE.ShaderMaterial;
+  private readonly materials: THREE.ShaderMaterial[] = [];
   private readonly ringMeshes: THREE.InstancedMesh[] = [];
   private readonly ringCapacities: number[] = [];
   private readonly chunkCache = new Map<string, ChunkData>();
@@ -62,14 +62,20 @@ export class GrassField {
 
   constructor(config: GrassFieldConfig, palette: Palette) {
     this.config = config;
-    this.material = this.buildMaterial(palette);
 
     for (let ringIndex = 0; ringIndex < GRASS.LOD_RINGS.length; ringIndex++) {
       const capacity = this.computeRingCapacity(ringIndex);
       this.ringCapacities.push(capacity);
 
+      // Each ring gets its own material (same shader source, different
+      // uMaxRadius) rather than sharing one, so the edge-fade uniform can
+      // differ per ring — see the fade note in grass.vert.glsl.
+      const ringRadius = GRASS.LOD_RINGS[ringIndex]?.radius ?? 0;
+      const material = this.buildMaterial(palette, ringRadius);
+      this.materials.push(material);
+
       const geometry = this.buildBladeGeometry();
-      const mesh = new THREE.InstancedMesh(geometry, this.material, capacity);
+      const mesh = new THREE.InstancedMesh(geometry, material, capacity);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.count = 0;
       this.ringMeshes.push(mesh);
@@ -97,13 +103,18 @@ export class GrassField {
     }
   }
 
-  /** Called once per rendered frame: updates the shader's continuous-time
-   *  and camera-relative uniforms. Trail uniforms need no extra work here
-   *  — they're direct references into the same arrays fixedUpdate wrote. */
-  render(elapsedTime: number, cameraForward: THREE.Vector3): void {
-    this.material.uniforms.uTime!.value = elapsedTime;
-    (this.material.uniforms.uCameraForward!.value as THREE.Vector3).copy(cameraForward);
-    this.material.uniforms.uTrailCount!.value = this.trailCount;
+  /** Called once per rendered frame: updates the shader's continuous-time,
+   *  camera-relative, and player-position (for the LOD edge fade)
+   *  uniforms, on every ring's material. Trail position/weight arrays
+   *  need no extra work here — they're direct references into the same
+   *  arrays fixedUpdate wrote. */
+  render(elapsedTime: number, cameraForward: THREE.Vector3, playerPosition: THREE.Vector3): void {
+    for (const material of this.materials) {
+      material.uniforms.uTime!.value = elapsedTime;
+      (material.uniforms.uCameraForward!.value as THREE.Vector3).copy(cameraForward);
+      (material.uniforms.uPlayerPosition!.value as THREE.Vector3).copy(playerPosition);
+      material.uniforms.uTrailCount!.value = this.trailCount;
+    }
   }
 
   getVisibleInstanceCount(): number {
@@ -333,7 +344,7 @@ export class GrassField {
     return geometry;
   }
 
-  private buildMaterial(palette: Palette): THREE.ShaderMaterial {
+  private buildMaterial(palette: Palette, ringRadius: number): THREE.ShaderMaterial {
     const windDirection = new THREE.Vector2(WIND.DIRECTION[0], WIND.DIRECTION[1]).normalize();
 
     return new THREE.ShaderMaterial({
@@ -343,6 +354,10 @@ export class GrassField {
       uniforms: {
         uTime: { value: 0 },
         uCameraForward: { value: new THREE.Vector3(0, 0, -1) },
+
+        uPlayerPosition: { value: new THREE.Vector3() },
+        uMaxRadius: { value: ringRadius },
+        uFadeBand: { value: GRASS.EDGE_FADE_BAND },
 
         uWindDirection: { value: windDirection },
         uWindBaseStrength: { value: WIND.BASE_STRENGTH },
@@ -384,10 +399,12 @@ export class GrassField {
    *  direction and colours it also uses for the terrain and scene lights,
    *  so both systems are lit consistently. */
   setLighting(sunDirection: THREE.Vector3, sunColor: THREE.Color, sunIntensity: number, ambientColor: THREE.Color, ambientIntensity: number): void {
-    (this.material.uniforms.uSunDirection!.value as THREE.Vector3).copy(sunDirection);
-    (this.material.uniforms.uSunColor!.value as THREE.Color).copy(sunColor);
-    this.material.uniforms.uSunIntensity!.value = sunIntensity;
-    (this.material.uniforms.uAmbientColor!.value as THREE.Color).copy(ambientColor);
-    this.material.uniforms.uAmbientIntensity!.value = ambientIntensity;
+    for (const material of this.materials) {
+      (material.uniforms.uSunDirection!.value as THREE.Vector3).copy(sunDirection);
+      (material.uniforms.uSunColor!.value as THREE.Color).copy(sunColor);
+      material.uniforms.uSunIntensity!.value = sunIntensity;
+      (material.uniforms.uAmbientColor!.value as THREE.Color).copy(ambientColor);
+      material.uniforms.uAmbientIntensity!.value = ambientIntensity;
+    }
   }
 }

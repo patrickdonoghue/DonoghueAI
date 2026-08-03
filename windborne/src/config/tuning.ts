@@ -302,6 +302,15 @@ export const GRASS = {
     { radius: 100, density: 1.4 },
   ],
 
+  /** Distance (m) before a ring's outer radius where blades start
+   *  shrinking toward their root, reaching nothing exactly at the edge.
+   *  Without this, a grass chunk crossing between rings — or leaving
+   *  range entirely — pops at full size the instant GrassField rebuilds,
+   *  instead of fading out first.
+   *  Higher: smoother, but the fade becomes noticeable as its own ring
+   *  of shorter grass. Lower: less shrinking distance, more of a pop. */
+  EDGE_FADE_BAND: 6.0,
+
   /** Widen blades the camera sees mostly edge-on — either because a
    *  blade's own width axis points near-straight at the camera, or
    *  because the camera is looking steeply down and every blade's height

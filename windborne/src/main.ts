@@ -115,7 +115,7 @@ const loop = new Loop(
     chaseCamera.render(alpha);
     chaseCamera.camera.getWorldDirection(scratchCameraForward);
     const elapsedTime = (performance.now() - clockStart) / 1000;
-    grassField.render(elapsedTime, scratchCameraForward);
+    grassField.render(elapsedTime, scratchCameraForward, scratchPosition);
 
     renderer.render(scene, chaseCamera.camera);
 
