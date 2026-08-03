@@ -3,15 +3,27 @@ import { Loop } from './core/Loop';
 import { Input } from './core/Input';
 import { WindController, type LevelBounds } from './player/WindController';
 import { ChaseCamera } from './player/ChaseCamera';
+import { Terrain, type TerrainConfig } from './world/Terrain';
+import { GrassField } from './world/GrassField';
+import { getPalette, paletteColor } from './config/palettes';
 
 // ---------------------------------------------------------------------------
-// Phase 0: flat grey plane, a cone for the player, chase camera, input.
-// No terrain, no level JSON yet — those are Phase 1 and Phase 3. This bounds
-// box is a temporary stand-in for a real level's bounds so the flight
-// model's boundary behaviour can be tested; it is not level content.
+// Phase 1: heightfield terrain and instanced grass. No level JSON yet
+// (that's Phase 3) — this bounds box and these noise octaves are a
+// temporary stand-in for real level content, not an authored level.
 // ---------------------------------------------------------------------------
 const TEST_BOUNDS: LevelBounds = { min: [-250, -250], max: [250, 250] };
-const getGroundHeight = (): number => 0; // flat plane at y = 0
+const TEST_TERRAIN_CONFIG: TerrainConfig = {
+  seed: 20260803,
+  bounds: TEST_BOUNDS,
+  octaves: [
+    { frequency: 0.006, amplitude: 8.0 },
+    { frequency: 0.02, amplitude: 3.0 },
+    { frequency: 0.06, amplitude: 0.8 },
+  ],
+};
+
+const palette = getPalette('meadow-morning');
 
 const appRoot = document.getElementById('app');
 if (!appRoot) throw new Error('#app root element missing');
@@ -22,52 +34,38 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 appRoot.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xbfc7cc);
+scene.background = paletteColor(palette.fog.color);
+scene.fog = new THREE.Fog(paletteColor(palette.fog.color), palette.fog.near, palette.fog.far);
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-sun.position.set(80, 120, 40);
-scene.add(sun);
+// Sun direction from the palette so lighting is consistent between the
+// terrain's vertex-colour shading and the grass shader's sun-relative
+// backlight term — both read the same direction/colour/intensity.
+const sunElevationRad = THREE.MathUtils.degToRad(palette.sky.sunElevation);
+const sunAzimuthRad = THREE.MathUtils.degToRad(palette.sky.sunAzimuth);
+const sunDirection = new THREE.Vector3(
+  Math.cos(sunElevationRad) * Math.cos(sunAzimuthRad),
+  Math.sin(sunElevationRad),
+  Math.cos(sunElevationRad) * Math.sin(sunAzimuthRad),
+).normalize();
+const sunColor = paletteColor(palette.sky.sun);
+const ambientColor = paletteColor(palette.sky.zenith);
 
-// Grey ground with a faint grid so speed and altitude are legible even
-// with no terrain or grass yet — a testing aid, not decoration. Trivial to
-// remove; not part of any dream's art.
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), new THREE.MeshStandardMaterial({
-  color: 0x9a9a92,
-  map: makeGridTexture(),
-}));
-ground.rotation.x = -Math.PI / 2;
-scene.add(ground);
+const sunLight = new THREE.DirectionalLight(sunColor, palette.sky.sunIntensity);
+sunLight.position.copy(sunDirection).multiplyScalar(200);
+scene.add(sunLight);
+scene.add(new THREE.AmbientLight(ambientColor, palette.sky.ambientIntensity));
 
-function makeGridTexture(): THREE.Texture {
-  const size = 256;
-  const cellsPerSide = 8;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#9a9a92';
-  ctx.fillRect(0, 0, size, size);
-  ctx.strokeStyle = '#87877e';
-  ctx.lineWidth = 2;
-  const cell = size / cellsPerSide;
-  for (let i = 0; i <= cellsPerSide; i++) {
-    ctx.beginPath();
-    ctx.moveTo(i * cell, 0);
-    ctx.lineTo(i * cell, size);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, i * cell);
-    ctx.lineTo(size, i * cell);
-    ctx.stroke();
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(60, 60);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
+const terrain = new Terrain(TEST_TERRAIN_CONFIG, palette);
+scene.add(terrain.group);
+
+const grassField = new GrassField(
+  { seed: TEST_TERRAIN_CONFIG.seed, bounds: TEST_BOUNDS, getHeightAt: terrain.getHeightAt.bind(terrain) },
+  palette,
+);
+grassField.setLighting(sunDirection, sunColor, palette.sky.sunIntensity, ambientColor, palette.sky.ambientIntensity);
+scene.add(grassField.group);
+
+const getGroundHeight = terrain.getHeightAt.bind(terrain);
 
 // The player: a coloured cone standing in for the lead petal until
 // PetalTrail exists in Phase 2.
@@ -78,7 +76,8 @@ const player = new THREE.Mesh(
 scene.add(player);
 
 const windController = new WindController();
-windController.setPosition(0, 10, 0);
+const spawnGroundY = terrain.getHeightAt(0, 0);
+windController.setPosition(0, spawnGroundY + 15, 0);
 windController.setHeading(0, 0, -1);
 
 const chaseCamera = new ChaseCamera(window.innerWidth / window.innerHeight);
@@ -88,8 +87,10 @@ const input = new Input(renderer.domElement);
 
 const scratchPosition = new THREE.Vector3();
 const scratchHeading = new THREE.Vector3();
+const scratchCameraForward = new THREE.Vector3();
 const coneDefaultUp = new THREE.Vector3(0, 1, 0);
 const coneQuaternion = new THREE.Quaternion();
+const clockStart = performance.now();
 
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -98,9 +99,10 @@ window.addEventListener('resize', () => {
 
 const loop = new Loop(
   (dt) => {
-    const inputState = input.poll(dt, chaseCamera.camera);
+    const inputState = input.poll(dt, windController.heading);
     windController.update(dt, inputState, TEST_BOUNDS, getGroundHeight);
     chaseCamera.fixedUpdate(dt, windController.position, windController.heading, inputState.steerYaw, windController.speed);
+    grassField.fixedUpdate(dt, windController.position);
   },
   (alpha) => {
     windController.getInterpolatedPosition(alpha, scratchPosition);
@@ -111,8 +113,13 @@ const loop = new Loop(
     player.quaternion.copy(coneQuaternion);
 
     chaseCamera.render(alpha);
+    chaseCamera.camera.getWorldDirection(scratchCameraForward);
+    const elapsedTime = (performance.now() - clockStart) / 1000;
+    grassField.render(elapsedTime, scratchCameraForward);
+
     renderer.render(scene, chaseCamera.camera);
 
+    perfHUD?.setInstanceCounts({ grass: grassField.getVisibleInstanceCount() });
     perfHUD?.update(renderer);
   },
 );
