@@ -38,6 +38,7 @@ export class WindController {
   private readonly maxReferenceSpeed =
     FLIGHT.BASE_SPEED * (1 + FLIGHT.BOOST_GAIN) * (1 + FLIGHT.PETAL_SPEED_K * Math.sqrt(PETALS.MAX_PETALS));
 
+  private readonly worldUp = new THREE.Vector3(0, 1, 0);
   private readonly scratchDesired = new THREE.Vector3();
   private readonly scratchToCenter = new THREE.Vector3();
   private readonly scratchVelocity = new THREE.Vector3();
@@ -124,9 +125,16 @@ export class WindController {
 
     this.scratchAxis.crossVectors(this.heading, target);
     if (this.scratchAxis.lengthSq() < 1e-8) {
-      // heading and target are exactly opposite — any perpendicular axis works.
-      this.scratchAxis.set(this.heading.z, 0, -this.heading.x);
-      if (this.scratchAxis.lengthSq() < 1e-8) this.scratchAxis.set(1, 0, 0);
+      // heading and target are exactly (or nearly) opposite, so any
+      // perpendicular axis technically reaches the target — but not any
+      // perpendicular axis LOOKS right. Turning around by rotating around
+      // an arbitrary horizontal axis pitches the nose through vertical
+      // (a loop); rotating around world-up instead turns it around in
+      // the horizontal plane (a U-turn), which is what a reversal should
+      // look like. This is always well-defined here because PITCH_LIMIT
+      // keeps heading at most 70° from horizontal, so it's never
+      // parallel to world-up.
+      this.scratchAxis.copy(this.worldUp);
     }
     this.scratchAxis.normalize();
 
