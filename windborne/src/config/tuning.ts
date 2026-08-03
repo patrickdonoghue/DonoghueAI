@@ -44,16 +44,18 @@ export const FLIGHT = {
   DECEL_TAU: 1.4,
 
   /** How fast the velocity vector can rotate toward the input direction,
-   *  at BASE_SPEED. 1.6 rad/s ≈ 92°/s.
+   *  at BASE_SPEED. 1.2 rad/s ≈ 69°/s.
    *  This single number does more for the "I am a current, not a cursor"
-   *  feeling than anything else in this file.
+   *  feeling than anything else in this file. Brought down from 1.6 —
+   *  playtesting found that felt twitchy, chasing every small input
+   *  change too eagerly instead of carrying through a turn.
    *  Higher: responsive, arcade, cheap. Lower: heavy, majestic, frustrating. */
-  TURN_RATE: 1.6,
+  TURN_RATE: 1.2,
 
   /** Turn rate at maximum speed. Turning gets harder as you go faster,
    *  which is both physical and good for pacing. Interpolated linearly
    *  between BASE_SPEED and max. */
-  TURN_RATE_AT_MAX: 1.0,
+  TURN_RATE_AT_MAX: 0.75,
 
   /** Hard limit on pitch, so the player can never end up inverted or
    *  staring at the sky with no horizon reference. ±70°. */
@@ -101,9 +103,12 @@ export const INPUT = {
    *  screen edge, which matters on ultrawide displays. */
   MOUSE_FULL_DEFLECTION: 0.55,
 
-  /** Input smoothing time constant. Small — the flight model already
-   *  provides the heft, and doubling up makes it feel laggy. */
-  SMOOTHING_TAU: 0.08,
+  /** Input smoothing time constant. Raised from 0.08 — that relied on
+   *  TURN_RATE alone to absorb jittery raw input, which read as twitchy
+   *  rather than current-like. 0.18 takes the edge off small, fast
+   *  cursor/stick movements before they ever reach the flight model.
+   *  Higher: smoother, but steering starts to feel delayed/laggy. */
+  SMOOTHING_TAU: 0.18,
 
   GAMEPAD_DEADZONE: 0.12,
 
@@ -118,10 +123,12 @@ export const INPUT = {
   /** How far off centre-forward full steering deflection aims, in world
    *  units at 1m distance (effectively a tangent of the steering cone).
    *  This is the target the flight model's TURN_RATE then chases toward —
-   *  it does not itself control turn speed.
+   *  it does not itself control turn speed. Brought down from 1.1 so a
+   *  full-deflection input doesn't demand as sharp a correction, which
+   *  compounded with the old TURN_RATE to feel twitchy.
    *  Higher: full deflection points further from where you're already
    *  headed, so the plateau at max turn rate is reached sooner. */
-  STEER_SPAN: 1.1,
+  STEER_SPAN: 0.85,
 
   /** Device tilt calibration: degrees of device tilt for full deflection,
    *  measured from the orientation at calibration time. */
