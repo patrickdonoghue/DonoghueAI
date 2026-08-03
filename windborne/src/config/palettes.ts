@@ -129,7 +129,13 @@ export const MEADOW_MORNING: Palette = {
   },
 
   terrain: {
-    aliveGrass: 0x4a6b33,
+    /** Deliberately darker and less saturated than grass.aliveBase, not a
+     *  near-match — this is the shadowed soil/thatch showing between
+     *  blades, not the grass itself. When the two were close (0x4a6b33
+     *  vs 0x3f6b2e), grass-covered ground and bare terrain were visually
+     *  indistinguishable regardless of blade density, since there was
+     *  nothing for the grass shader's colour to contrast against. */
+    aliveGrass: 0x2c3c20,
     deadGrass: 0x7a7160,
     dirt: 0x6b5b45,
     rock: 0x8c8578,
