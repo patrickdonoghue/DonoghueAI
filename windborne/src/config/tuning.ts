@@ -213,6 +213,40 @@ export const CAMERA = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// TERRAIN
+// ---------------------------------------------------------------------------
+
+export const TERRAIN = {
+  /** World size of a terrain mesh chunk. Independent of GRASS.CHUNK_SIZE —
+   *  terrain chunks are much bigger since the mesh itself doesn't need
+   *  fine-grained culling the way individual grass blades do. */
+  CHUNK_SIZE: 50.0,
+
+  /** Vertices per side at each LOD tier. The PRD targets ~64×64 for the
+   *  nearest tier; 65 (not 64) so there are an even 64 quads per side. */
+  RESOLUTION_NEAR: 65,
+  RESOLUTION_MID: 33,
+  RESOLUTION_FAR: 17,
+
+  /** Distance bands (metres, from chunk centre to camera) that select the
+   *  resolution tiers above. Phase 1 assigns a chunk's tier once at load,
+   *  from its distance to the centre of the (currently small, bounded)
+   *  test level rather than re-deriving it every frame from the player —
+   *  simple, and fine while there's one small level. Revisit if/when
+   *  Phase 3+ levels get large enough that this stops being a good
+   *  approximation of "near the player." */
+  LOD_NEAR_DISTANCE: 120.0,
+  LOD_MID_DISTANCE: 260.0,
+
+  /** Slope blend range for the grass/dirt/rock colour mix, expressed as
+   *  dot(normal, up). 1.0 is flat ground, 0.0 is a vertical cliff.
+   *  Above SLOPE_GRASS_MAX: pure grass colour. Below SLOPE_ROCK_MIN: pure
+   *  rock. Between: linear blend, with dirt as the midpoint tint. */
+  SLOPE_GRASS_MAX: 0.92,
+  SLOPE_ROCK_MIN: 0.55,
+} as const;
+
+// ---------------------------------------------------------------------------
 // GRASS
 // ---------------------------------------------------------------------------
 
@@ -226,6 +260,12 @@ export const GRASS = {
   /** Segments per blade. 5 gives a convincing curve; 3 looks like a shard.
    *  Each segment is 2 verts, plus the tip: 11 vertices, 9 triangles. */
   SEGMENTS: 5,
+
+  /** Static natural lean baked into every blade's rest pose, as a fraction
+   *  of its own height. Separate from wind — this is "blades aren't
+   *  straight," not "blades are swaying."
+   *  Higher: shaggier, more windswept-looking even at rest. */
+  CURVE_AMOUNT: 0.18,
 
   /** World size of a grass chunk. Chunks are the unit of culling and
    *  rebuild, so smaller means finer culling but more draw calls. */

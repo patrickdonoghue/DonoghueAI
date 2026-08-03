@@ -11,6 +11,8 @@
  * and do all shader maths in linear, or the greens will go muddy.
  */
 
+import * as THREE from 'three';
+
 export interface Palette {
   id: string;
 
@@ -165,4 +167,13 @@ export function getPalette(id: string): Palette {
   const p = PALETTES[id];
   if (!p) throw new Error(`Unknown palette: ${id}`);
   return p;
+}
+
+/** Converts one of this file's sRGB hex colours into a THREE.Color in the
+ *  renderer's linear working space — see the file header note. Every
+ *  system that reads a palette colour should go through this, not
+ *  `new THREE.Color(hex)` directly, so a missed conversion doesn't quietly
+ *  produce muddy greens. */
+export function paletteColor(hex: number): THREE.Color {
+  return new THREE.Color().setHex(hex, THREE.SRGBColorSpace);
 }
