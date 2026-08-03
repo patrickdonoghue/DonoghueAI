@@ -44,18 +44,19 @@ export const FLIGHT = {
   DECEL_TAU: 1.4,
 
   /** How fast the velocity vector can rotate toward the input direction,
-   *  at BASE_SPEED. 1.2 rad/s ≈ 69°/s.
+   *  at BASE_SPEED. 0.85 rad/s ≈ 49°/s.
    *  This single number does more for the "I am a current, not a cursor"
-   *  feeling than anything else in this file. Brought down from 1.6 —
-   *  playtesting found that felt twitchy, chasing every small input
-   *  change too eagerly instead of carrying through a turn.
+   *  feeling than anything else in this file. Brought down twice now —
+   *  1.6 then 1.2 both still chased every small input change too eagerly
+   *  instead of carrying through a turn. Combined with the INPUT changes
+   *  below, this is the third and biggest pass at the same complaint.
    *  Higher: responsive, arcade, cheap. Lower: heavy, majestic, frustrating. */
-  TURN_RATE: 1.2,
+  TURN_RATE: 0.85,
 
   /** Turn rate at maximum speed. Turning gets harder as you go faster,
    *  which is both physical and good for pacing. Interpolated linearly
    *  between BASE_SPEED and max. */
-  TURN_RATE_AT_MAX: 0.75,
+  TURN_RATE_AT_MAX: 0.5,
 
   /** Hard limit on pitch, so the player can never end up inverted or
    *  staring at the sky with no horizon reference. ±70°. */
@@ -95,20 +96,27 @@ export const FLIGHT = {
 
 export const INPUT = {
   /** Fraction of the screen's half-height at the centre where mouse input
-   *  reads as neutral. Without this, the player can never fly straight. */
-  MOUSE_DEADZONE: 0.06,
+   *  reads as neutral. Without this, the player can never fly straight.
+   *  Raised from 0.06 — that let tiny, near-unavoidable cursor tremor
+   *  right around centre register as steering input. */
+  MOUSE_DEADZONE: 0.1,
 
   /** How far from centre the cursor must be for maximum steering input,
-   *  as a fraction of half-height. 0.55 means you don't need to reach the
-   *  screen edge, which matters on ultrawide displays. */
-  MOUSE_FULL_DEFLECTION: 0.55,
+   *  as a fraction of half-height. Raised from 0.55 — that reached full
+   *  deflection within little more than half the screen's half-height,
+   *  a steep curve where small mouse movements near centre produced
+   *  outsized input changes. 0.8 flattens that curve considerably; you
+   *  now need a deliberate, close-to-full-height movement for max input. */
+  MOUSE_FULL_DEFLECTION: 0.8,
 
-  /** Input smoothing time constant. Raised from 0.08 — that relied on
-   *  TURN_RATE alone to absorb jittery raw input, which read as twitchy
-   *  rather than current-like. 0.18 takes the edge off small, fast
+  /** Input smoothing time constant. Raised twice now — 0.08 relied on
+   *  TURN_RATE alone to absorb jittery raw input, and 0.18 still wasn't
+   *  enough. 0.35 filters out noticeably more of the small, fast
    *  cursor/stick movements before they ever reach the flight model.
-   *  Higher: smoother, but steering starts to feel delayed/laggy. */
-  SMOOTHING_TAU: 0.18,
+   *  Higher: smoother, but steering starts to feel delayed/laggy — if
+   *  input starts to feel sluggish rather than twitchy, this is the
+   *  first one to bring back down. */
+  SMOOTHING_TAU: 0.35,
 
   GAMEPAD_DEADZONE: 0.12,
 
@@ -123,12 +131,12 @@ export const INPUT = {
   /** How far off centre-forward full steering deflection aims, in world
    *  units at 1m distance (effectively a tangent of the steering cone).
    *  This is the target the flight model's TURN_RATE then chases toward —
-   *  it does not itself control turn speed. Brought down from 1.1 so a
-   *  full-deflection input doesn't demand as sharp a correction, which
-   *  compounded with the old TURN_RATE to feel twitchy.
+   *  it does not itself control turn speed. Brought down twice now, from
+   *  1.1 to 0.85 to 0.55, so a full-deflection input doesn't demand as
+   *  sharp a correction.
    *  Higher: full deflection points further from where you're already
    *  headed, so the plateau at max turn rate is reached sooner. */
-  STEER_SPAN: 0.85,
+  STEER_SPAN: 0.55,
 
   /** Device tilt calibration: degrees of device tilt for full deflection,
    *  measured from the orientation at calibration time. */
@@ -255,7 +263,16 @@ export const GRASS = {
   HEIGHT_ALIVE: 0.55,
   HEIGHT_DEAD: 0.28,
   HEIGHT_JITTER: 0.3,
-  WIDTH: 0.035,
+
+  /** Raised from 0.035 — at the chase camera's normal cruising altitude
+   *  (several metres up, looking down at a shallow-to-moderate angle),
+   *  a real-grass-width blade foreshortens into a fraction of a pixel
+   *  and disappears into the terrain's own grass-green colour. This is
+   *  the single most direct lever on "does grass read as grass from
+   *  altitude, not just when grazing the tops."
+   *  Higher: reads better from up high, more visibly like thin ribbons
+   *  than blades when actually grazing the tops. */
+  WIDTH: 0.06,
 
   /** Segments per blade. 5 gives a convincing curve; 3 looks like a shard.
    *  Each segment is 2 verts, plus the tip: 11 vertices, 9 triangles. */
@@ -285,9 +302,16 @@ export const GRASS = {
     { radius: 100, density: 1.4 },
   ],
 
-  /** Widen blades that are edge-on to the camera, in view space.
-   *  Without this, distant grass sparkles as blades cross pixel boundaries. */
-  VIEW_WIDEN: 0.6,
+  /** Widen blades the camera sees mostly edge-on — either because a
+   *  blade's own width axis points near-straight at the camera, or
+   *  because the camera is looking steeply down and every blade's height
+   *  (its main visible extent from the side) has foreshortened away.
+   *  Without this, grass sparkles at distance and reads as flat ground
+   *  from altitude, since only WIDTH is left contributing coverage in
+   *  both cases. Raised from 0.6 alongside the altitude-visibility fix
+   *  above — this pulls more weight now that the top-down case is
+   *  actually covered (see grass.vert.glsl). */
+  VIEW_WIDEN: 0.9,
 
   /** Fake ambient occlusion: how much to darken the blade toward its root. */
   ROOT_DARKEN: 0.45,

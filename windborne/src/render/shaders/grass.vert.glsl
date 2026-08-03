@@ -84,15 +84,21 @@ void main() {
 
   worldPos.xz += windOffsetXZ + deflectOffsetXZ;
 
-  // Edge-on widening: a blade whose width axis points close to straight at
-  // the camera covers almost no pixels and sparkles at distance. Widen it
-  // proportionally to how edge-on it is. Approximated from the blade's
-  // width axis vs. the camera's view direction rather than a full
-  // view-space projection — cheap, and the effect only needs to be
-  // roughly right.
+  // Widening: two different reasons a blade can cover too few pixels.
+  // (1) Edge-on: its width axis points close to straight at the camera —
+  //     happens at any pitch, depends on the blade's yaw.
+  // (2) Top-down: the camera is looking steeply down, so the blade's
+  //     HEIGHT foreshortens toward nothing and only its (always-thin)
+  //     width axis remains — happens to every blade regardless of yaw,
+  //     which (1) alone doesn't catch since a steep-down camera forward
+  //     vector is mostly vertical and near-orthogonal to any horizontal
+  //     width axis, reading as barely edge-on when it's the case that
+  //     most needs compensating.
+  // Take whichever of the two calls for more widening.
   vec3 worldRight = normalize((modelMatrix * instanceMatrix * vec4(1.0, 0.0, 0.0, 0.0)).xyz);
   float edgeOn = abs(dot(worldRight, uCameraForward));
-  float widen = 1.0 + edgeOn * uViewWiden;
+  float topDown = clamp(-uCameraForward.y, 0.0, 1.0);
+  float widen = 1.0 + max(edgeOn, topDown) * uViewWiden;
   worldPos += worldRight * (widen - 1.0) * position.x;
 
   vWorldPosition = worldPos;
