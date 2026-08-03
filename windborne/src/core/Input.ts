@@ -121,9 +121,21 @@ export class Input {
   /**
    * Merge every device into one steering + boost signal, then convert
    * steering into a world-space target direction relative to the supplied
-   * camera. Called once per fixed step.
+   * heading. Called once per fixed step.
+   *
+   * This must be the flight model's own current heading, not the chase
+   * camera's rendered orientation — the camera is purely a lagged,
+   * damped function of the heading with no input of its own, so feeding
+   * its output back in as the next steering target closes a loop: any
+   * transient where the camera lags the player's actual attitude (e.g.
+   * catching up after a large altitude change) tips the target off-level,
+   * which pulls the heading further off-level, which widens the camera's
+   * lag further. On the flat Phase 0 test plane this never had a large
+   * transient to seed it; Phase 1's terrain did, and it ran away into a
+   * dive. Steering from the heading directly breaks the loop — the camera
+   * only ever observes, never feeds back.
    */
-  poll(dt: number, camera: THREE.Camera): InputState {
+  poll(dt: number, heading: THREE.Vector3): InputState {
     this.rawYaw = 0;
     this.rawPitch = 0;
     this.rawBoost = 0;
@@ -142,7 +154,7 @@ export class Input {
     this.smoothedYaw += (this.rawYaw - this.smoothedYaw) * smoothing;
     this.smoothedPitch += (this.rawPitch - this.smoothedPitch) * smoothing;
 
-    camera.getWorldDirection(this.scratchForward);
+    this.scratchForward.copy(heading);
     this.scratchRight.crossVectors(this.scratchForward, this.worldUp).normalize();
 
     this.state.desiredDirection
