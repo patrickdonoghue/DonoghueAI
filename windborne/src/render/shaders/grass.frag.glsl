@@ -1,0 +1,55 @@
+// Grass blade fragment shader: base→tip colour ramp, root darkening (fake
+// AO), low-frequency patchiness, and a backlight/translucency term that
+// does most of the work of making the field look alive rather than
+// plastic. Unlit-but-shaded — no scene lights are sampled; sun and ambient
+// are passed in directly since a fully custom lighting model is cheaper
+// and easier to keep consistent with the terrain's than wiring into
+// three's light uniforms.
+precision highp float;
+
+uniform vec3 uAliveBase;
+uniform vec3 uAliveTip;
+uniform vec3 uDeadBase;
+uniform vec3 uDeadTip;
+uniform float uVitality; // 0 dead, 1 alive — always 1.0 until Phase 2's VitalityField
+
+uniform float uRootDarken;
+uniform float uPatchScale;
+uniform float uPatchStrength;
+uniform float uBacklightStrength;
+uniform float uBacklightPower;
+
+uniform vec3 uSunDirection; // surface-to-light, normalized
+uniform vec3 uSunColor;
+uniform float uSunIntensity;
+uniform vec3 uAmbientColor;
+uniform float uAmbientIntensity;
+uniform vec3 uCameraForward;
+
+varying vec3 vWorldPosition;
+varying vec3 vNormal;
+varying float vHeightFraction;
+
+void main() {
+  vec3 baseColor = mix(uDeadBase, uAliveBase, uVitality);
+  vec3 tipColor = mix(uDeadTip, uAliveTip, uVitality);
+  vec3 color = mix(baseColor, tipColor, vHeightFraction);
+
+  // Fake ambient occlusion: darken toward the root.
+  color *= mix(1.0 - uRootDarken, 1.0, smoothstep(0.0, 0.35, vHeightFraction));
+
+  // Low-frequency patchiness so the field doesn't read as a uniform carpet.
+  float patchNoise = snoise(vWorldPosition.xz * uPatchScale) * 0.5 + 0.5;
+  color = mix(color, color * patchNoise, uPatchStrength);
+
+  vec3 normal = normalize(vNormal);
+  float diffuse = max(dot(normal, uSunDirection), 0.0);
+  vec3 lit = color * (uAmbientColor * uAmbientIntensity + uSunColor * uSunIntensity * diffuse);
+
+  // Backlight/translucency: strongest when the sun is roughly behind the
+  // blade from the camera's point of view.
+  float backlit = pow(clamp(-dot(uCameraForward, uSunDirection), 0.0, 1.0), uBacklightPower);
+  lit += uSunColor * uSunIntensity * backlit * uBacklightStrength * color;
+
+  gl_FragColor = vec4(lit, 1.0);
+}
