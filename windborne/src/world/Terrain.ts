@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
-import { TERRAIN } from '../config/tuning';
+import { GRASS, TERRAIN } from '../config/tuning';
 import { paletteColor, type Palette } from '../config/palettes';
 import { mulberry32 } from '../core/Random';
 import type { LevelBounds } from '../player/WindController';
+import noiseSource from '../render/shaders/noise.glsl?raw';
+import terrainVertSource from '../render/shaders/terrain.vert.glsl?raw';
+import terrainFragSource from '../render/shaders/terrain.frag.glsl?raw';
 
 export interface TerrainOctave {
   frequency: number;
@@ -32,13 +35,32 @@ export class Terrain {
 
   private readonly config: TerrainConfig;
   private readonly noise: NoiseFunction2D;
-  private readonly material: THREE.MeshStandardMaterial;
+  private readonly material: THREE.ShaderMaterial;
 
   constructor(config: TerrainConfig, palette: Palette) {
     this.config = config;
     this.noise = createNoise2D(mulberry32(config.seed));
-    this.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+    this.material = this.buildMaterial(palette);
     this.buildChunks(palette);
+  }
+
+  /** Called once per rendered frame: updates the fake-grass distance
+   *  uniform. Everything else on this material is set once at construction
+   *  (lighting via setLighting, ring boundaries at build time) since
+   *  terrain chunks themselves never change. */
+  render(playerPosition: THREE.Vector3): void {
+    (this.material.uniforms.uPlayerPosition!.value as THREE.Vector3).copy(playerPosition);
+  }
+
+  /** Main.ts calls this once, after computing the palette-derived sun
+   *  direction and colours it also uses for the grass shader, so both
+   *  systems are lit consistently. */
+  setLighting(sunDirection: THREE.Vector3, sunColor: THREE.Color, sunIntensity: number, ambientColor: THREE.Color, ambientIntensity: number): void {
+    (this.material.uniforms.uSunDirection!.value as THREE.Vector3).copy(sunDirection);
+    (this.material.uniforms.uSunColor!.value as THREE.Color).copy(sunColor);
+    this.material.uniforms.uSunIntensity!.value = sunIntensity;
+    (this.material.uniforms.uAmbientColor!.value as THREE.Color).copy(ambientColor);
+    this.material.uniforms.uAmbientIntensity!.value = ambientIntensity;
   }
 
   getHeightAt(x: number, z: number): number {
@@ -108,7 +130,7 @@ export class Terrain {
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
-    geometry.setAttribute('color', this.computeSlopeColors(geometry, palette));
+    this.computeSlopeAttributes(geometry, palette);
 
     const mesh = new THREE.Mesh(geometry, this.material);
     // Terrain chunks never move — skip the per-frame matrix recompute.
@@ -118,13 +140,16 @@ export class Terrain {
   }
 
   /** Slope-based grass/dirt/rock blend from PRD §6.1, baked as vertex
-   *  colours at build time. Vitality-driven colour (dead ↔ alive) isn't
-   *  wired in — that's Phase 2's VitalityField; this always renders the
-   *  "alive" terrain colour. */
-  private computeSlopeColors(geometry: THREE.BufferGeometry, palette: Palette): THREE.BufferAttribute {
+   *  colours at build time, plus a `grassiness` scalar (1 = flat/grass,
+   *  0 = steep rock/dirt) the fragment shader uses to keep the fake-grass
+   *  horizon tint off cliffs and dirt patches. Vitality-driven colour
+   *  (dead ↔ alive) isn't wired in — that's Phase 2's VitalityField; this
+   *  always renders the "alive" terrain colour. */
+  private computeSlopeAttributes(geometry: THREE.BufferGeometry, palette: Palette): void {
     const normal = geometry.getAttribute('normal');
     const vertexCount = normal.count;
     const colors = new Float32Array(vertexCount * 3);
+    const grassiness = new Float32Array(vertexCount);
 
     const grass = paletteColor(palette.terrain.aliveGrass);
     const dirt = paletteColor(palette.terrain.dirt);
@@ -153,8 +178,39 @@ export class Terrain {
       colors[i * 3] = blended.r;
       colors[i * 3 + 1] = blended.g;
       colors[i * 3 + 2] = blended.b;
+      grassiness[i] = THREE.MathUtils.clamp((slope - rockMin) / (grassMax - rockMin), 0, 1);
     }
 
-    return new THREE.BufferAttribute(colors, 3);
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('grassiness', new THREE.BufferAttribute(grassiness, 1));
+  }
+
+  private buildMaterial(palette: Palette): THREE.ShaderMaterial {
+    const lastRing = GRASS.LOD_RINGS[GRASS.LOD_RINGS.length - 1];
+    const ringRadius = lastRing?.radius ?? 0;
+    const fadeBand = GRASS.EDGE_FADE_BAND;
+
+    return new THREE.ShaderMaterial({
+      vertexShader: `${noiseSource}\n${terrainVertSource}`,
+      fragmentShader: `${noiseSource}\n${terrainFragSource}`,
+      uniforms: {
+        uPlayerPosition: { value: new THREE.Vector3() },
+        // Fake grass starts exactly where GrassField's real grass begins
+        // fading (ring 2's outer radius minus its own fade band) and
+        // reaches full strength the same distance beyond it, so the
+        // handoff is symmetric with the real grass fading out.
+        uFakeGrassStart: { value: ringRadius - fadeBand },
+        uFakeGrassFull: { value: ringRadius + fadeBand },
+        uHorizonPatchScale: { value: GRASS.HORIZON_PATCH_SCALE },
+        uFakeGrassBase: { value: paletteColor(palette.grass.aliveBase) },
+        uFakeGrassBright: { value: paletteColor(palette.grass.aliveTip) },
+
+        uSunDirection: { value: new THREE.Vector3(0, 1, 0) },
+        uSunColor: { value: new THREE.Color(0xffffff) },
+        uSunIntensity: { value: 1.0 },
+        uAmbientColor: { value: new THREE.Color(0xffffff) },
+        uAmbientIntensity: { value: 0.5 },
+      },
+    });
   }
 }

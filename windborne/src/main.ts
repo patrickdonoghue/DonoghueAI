@@ -64,6 +64,7 @@ const grassField = new GrassField(
 );
 grassField.setLighting(sunDirection, sunColor, palette.sky.sunIntensity, ambientColor, palette.sky.ambientIntensity);
 scene.add(grassField.group);
+terrain.setLighting(sunDirection, sunColor, palette.sky.sunIntensity, ambientColor, palette.sky.ambientIntensity);
 
 const getGroundHeight = terrain.getHeightAt.bind(terrain);
 
@@ -116,6 +117,7 @@ const loop = new Loop(
     chaseCamera.camera.getWorldDirection(scratchCameraForward);
     const elapsedTime = (performance.now() - clockStart) / 1000;
     grassField.render(elapsedTime, scratchCameraForward, scratchPosition);
+    terrain.render(scratchPosition);
 
     renderer.render(scene, chaseCamera.camera);
 
