@@ -44,19 +44,21 @@ export const FLIGHT = {
   DECEL_TAU: 1.4,
 
   /** How fast the velocity vector can rotate toward the input direction,
-   *  at BASE_SPEED. 0.85 rad/s ≈ 49°/s.
+   *  at BASE_SPEED. 0.55 rad/s ≈ 32°/s.
    *  This single number does more for the "I am a current, not a cursor"
-   *  feeling than anything else in this file. Brought down twice now —
-   *  1.6 then 1.2 both still chased every small input change too eagerly
-   *  instead of carrying through a turn. Combined with the INPUT changes
-   *  below, this is the third and biggest pass at the same complaint.
+   *  feeling than anything else in this file. Fourth pass now — 1.6, then
+   *  1.2, then 0.85 all still felt "very very sensitive." This is the one
+   *  hard cap on how fast heading can change no matter what the input
+   *  does, so if it's still too sensitive after this, the remaining
+   *  culprit is more likely pitch specifically (see STEER_SPAN below)
+   *  than this number.
    *  Higher: responsive, arcade, cheap. Lower: heavy, majestic, frustrating. */
-  TURN_RATE: 0.85,
+  TURN_RATE: 0.55,
 
   /** Turn rate at maximum speed. Turning gets harder as you go faster,
    *  which is both physical and good for pacing. Interpolated linearly
    *  between BASE_SPEED and max. */
-  TURN_RATE_AT_MAX: 0.5,
+  TURN_RATE_AT_MAX: 0.35,
 
   /** Hard limit on pitch, so the player can never end up inverted or
    *  staring at the sky with no horizon reference. ±70°. */
@@ -75,9 +77,13 @@ export const FLIGHT = {
 
   /** Soft ceiling. Above this a gentle downward force applies. Keeps the
    *  player inside the composition — from 200m up, a beautiful level looks
-   *  like a texture. */
-  MAX_ALTITUDE: 120.0,
-  ALTITUDE_CEILING_K: 6.0,
+   *  like a texture, and grass in particular stops reading as grass at
+   *  all well before that. Brought down from 120 specifically to bound
+   *  how far a pitch overcorrection can climb — a backstop for the
+   *  sensitivity fix above, not a substitute for it. ALTITUDE_CEILING_K
+   *  raised to compensate for the shorter runway to arrest a climb in. */
+  MAX_ALTITUDE: 40.0,
+  ALTITUDE_CEILING_K: 9.0,
 
   /** Distance from the level bounds where the turn-back force begins.
    *  Accompanied by a visible gust of dust and leaves — the player should
@@ -102,21 +108,21 @@ export const INPUT = {
   MOUSE_DEADZONE: 0.1,
 
   /** How far from centre the cursor must be for maximum steering input,
-   *  as a fraction of half-height. Raised from 0.55 — that reached full
-   *  deflection within little more than half the screen's half-height,
-   *  a steep curve where small mouse movements near centre produced
-   *  outsized input changes. 0.8 flattens that curve considerably; you
-   *  now need a deliberate, close-to-full-height movement for max input. */
-  MOUSE_FULL_DEFLECTION: 0.8,
+   *  as a fraction of half-height. 1.0 means the full deflection point is
+   *  the screen edge — as flat as this curve can get; confirmed to help
+   *  but not be sufficient on its own, which is why TURN_RATE, STEER_SPAN,
+   *  and SMOOTHING_TAU all moved again alongside it. */
+  MOUSE_FULL_DEFLECTION: 1.0,
 
-  /** Input smoothing time constant. Raised twice now — 0.08 relied on
-   *  TURN_RATE alone to absorb jittery raw input, and 0.18 still wasn't
-   *  enough. 0.35 filters out noticeably more of the small, fast
-   *  cursor/stick movements before they ever reach the flight model.
+  /** Input smoothing time constant. Third raise now — 0.08 relied on
+   *  TURN_RATE alone to absorb jittery raw input, 0.18 and 0.35 both
+   *  still felt very sensitive. 0.55 filters out substantially more of
+   *  the small, fast cursor/stick movements before they ever reach the
+   *  flight model.
    *  Higher: smoother, but steering starts to feel delayed/laggy — if
    *  input starts to feel sluggish rather than twitchy, this is the
    *  first one to bring back down. */
-  SMOOTHING_TAU: 0.35,
+  SMOOTHING_TAU: 0.55,
 
   GAMEPAD_DEADZONE: 0.12,
 
@@ -131,12 +137,18 @@ export const INPUT = {
   /** How far off centre-forward full steering deflection aims, in world
    *  units at 1m distance (effectively a tangent of the steering cone).
    *  This is the target the flight model's TURN_RATE then chases toward —
-   *  it does not itself control turn speed. Brought down twice now, from
-   *  1.1 to 0.85 to 0.55, so a full-deflection input doesn't demand as
-   *  sharp a correction.
+   *  it does not itself control turn speed. Brought down three times now,
+   *  from 1.1 to 0.85 to 0.55 to 0.35, so a full-deflection input doesn't
+   *  demand as sharp a correction.
+   *  Note: this applies equally to yaw and pitch. The worst sensitivity
+   *  symptom so far (wild altitude swings) was pitch-driven — if it's
+   *  still too sensitive specifically when climbing/diving rather than
+   *  turning left/right after this pass, the fix is probably splitting
+   *  pitch onto its own (lower) sensitivity rather than lowering this
+   *  further, since yaw and pitch are sharing every knob in this file.
    *  Higher: full deflection points further from where you're already
    *  headed, so the plateau at max turn rate is reached sooner. */
-  STEER_SPAN: 0.55,
+  STEER_SPAN: 0.35,
 
   /** Device tilt calibration: degrees of device tilt for full deflection,
    *  measured from the orientation at calibration time. */
