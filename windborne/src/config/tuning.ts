@@ -302,16 +302,23 @@ export const GRASS = {
 
   /** LOD rings: [outerRadius (m), blades per m²].
    *  Densities fall off fast because distant blades cover fewer pixels.
-   *  These totals target roughly 120k visible blades:
+   *  Ring 2's radius raised from 100 to 150 — at 100 the edge where real
+   *  grass stopped was a visible hard line (fog at 100m is only ~14% of
+   *  the way to full strength, nowhere near enough to hide it). 150 pushes
+   *  the line out to where fog is doing real work (~32%), and gives the
+   *  terrain's noise-modulated fake grass (see Terrain.ts) more room to
+   *  hand off smoothly instead of needing to disguise a nearby seam.
+   *  These totals now target roughly 175k visible blades:
    *    ring 0: π·20²      × 32   ≈  40k
    *    ring 1: π(50²−20²) × 8    ≈  48k
-   *    ring 2: π(100²−50²)× 1.4  ≈  33k
+   *    ring 2: π(150²−50²)× 1.4  ≈  88k
    *  Beyond ring 2 the terrain shader fakes grass with noise-modulated
-   *  colour plus a horizon fuzz card. */
+   *  colour — see Terrain.ts's fake-grass blend. A full horizon fuzz
+   *  card (billboard geometry, per the PRD) is still not built. */
   LOD_RINGS: [
     { radius: 20, density: 32.0 },
     { radius: 50, density: 8.0 },
-    { radius: 100, density: 1.4 },
+    { radius: 150, density: 1.4 },
   ],
 
   /** Distance (m) on EITHER side of a LOD ring boundary (20m, 50m, 100m)
@@ -351,6 +358,13 @@ export const GRASS = {
    *  a grass field looks alive rather than plastic. */
   BACKLIGHT_STRENGTH: 0.8,
   BACKLIGHT_POWER: 3.0,
+
+  /** Low-frequency noise scale for the terrain's fake-grass tint beyond
+   *  ring 2 (see Terrain.ts) — deliberately coarser than PATCH_SCALE.
+   *  Up close, patchiness is a per-blade brightness variation; from far
+   *  away real grass just reads as broad tonal patches, closer to
+   *  cloud-shadow scale than blade scale. */
+  HORIZON_PATCH_SCALE: 0.015,
 } as const;
 
 // ---------------------------------------------------------------------------
