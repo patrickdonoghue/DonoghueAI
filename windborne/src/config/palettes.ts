@@ -134,8 +134,14 @@ export const MEADOW_MORNING: Palette = {
      *  blades, not the grass itself. When the two were close (0x4a6b33
      *  vs 0x3f6b2e), grass-covered ground and bare terrain were visually
      *  indistinguishable regardless of blade density, since there was
-     *  nothing for the grass shader's colour to contrast against. */
-    aliveGrass: 0x2c3c20,
+     *  nothing for the grass shader's colour to contrast against.
+     *  Lightened once from 0x2c3c20 — that fixed the contrast but was
+     *  dark enough that even direct sun only lifted it so far, and
+     *  shadowed slopes (helped by TERRAIN.LIGHT_WRAP's floor, but still
+     *  capped by this colour's own ceiling) were reading as near-black.
+     *  Still a clear step darker than grass.aliveBase — (52,79,38) vs
+     *  its (63,107,46) — just not as extreme a step. */
+    aliveGrass: 0x344f26,
     deadGrass: 0x7a7160,
     dirt: 0x6b5b45,
     rock: 0x8c8578,
