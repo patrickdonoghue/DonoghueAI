@@ -33,7 +33,7 @@ uniform float uViewWiden;
 uniform vec3 uCameraForward;
 
 uniform vec3 uPlayerPosition;
-uniform float uMaxRadius; // this ring's outer radius — see the fade note below
+uniform vec3 uRingBoundaries; // the 3 LOD ring radii (e.g. 20, 50, 100) — see the fade note below
 uniform float uFadeBand;
 
 varying vec3 vWorldPosition;
@@ -59,12 +59,26 @@ void main() {
   vec3 rootWorldPos = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
   vec2 rootXZ = rootWorldPos.xz;
 
-  // LOD edge fade: shrink a blade toward its root as it nears this ring's
-  // outer radius, so a grass chunk crossing between rings (or leaving
-  // range entirely) fades to nothing before GrassField's rebuild actually
-  // drops or re-tiers it, instead of popping at full size.
+  // LOD edge fade: shrink a blade toward its root as it nears ANY ring
+  // boundary, from EITHER side, identically regardless of which ring's
+  // buffer it's currently sitting in. This has to be symmetric: a chunk
+  // spends a stretch of travel sitting in the "wrong" ring relative to
+  // its current distance, because GrassField only re-tiers chunks when
+  // the player crosses an 8m grass-chunk boundary, not continuously. If
+  // the fade only applied when a chunk was ABOUT TO LEAVE its own ring
+  // outward, a chunk approaching the player (getting denser) would stay
+  // at full size right up until reassignment, then jump straight to its
+  // new, denser tier with no cushioning at all — which is the more
+  // common case in ordinary forward flight, not the rarer "falling
+  // behind" one. Fading near every boundary from both directions means
+  // whichever ring's data a chunk happens to be in when the reassignment
+  // finally lands, both the old and new tier evaluate to the same faded
+  // (or unfaded) value at that distance, so the swap is invisible.
   float distToPlayer = length(rootXZ - uPlayerPosition.xz);
-  float edgeFade = 1.0 - smoothstep(uMaxRadius - uFadeBand, uMaxRadius, distToPlayer);
+  float edgeFade = 1.0;
+  edgeFade *= smoothstep(0.0, uFadeBand, abs(distToPlayer - uRingBoundaries.x));
+  edgeFade *= smoothstep(0.0, uFadeBand, abs(distToPlayer - uRingBoundaries.y));
+  edgeFade *= smoothstep(0.0, uFadeBand, abs(distToPlayer - uRingBoundaries.z));
   localPos *= edgeFade;
 
   vec3 worldPos = (modelMatrix * instanceMatrix * vec4(localPos, 1.0)).xyz;

@@ -302,14 +302,19 @@ export const GRASS = {
     { radius: 100, density: 1.4 },
   ],
 
-  /** Distance (m) before a ring's outer radius where blades start
-   *  shrinking toward their root, reaching nothing exactly at the edge.
-   *  Without this, a grass chunk crossing between rings — or leaving
-   *  range entirely — pops at full size the instant GrassField rebuilds,
-   *  instead of fading out first.
+  /** Distance (m) on EITHER side of a LOD ring boundary (20m, 50m, 100m)
+   *  where blades shrink toward their root, reaching nothing exactly at
+   *  the boundary. Symmetric, and identical for every ring's material —
+   *  a chunk fades the same way whether it's approaching a boundary from
+   *  the sparse side or the dense side, so it doesn't matter which ring's
+   *  buffer it happens to be sitting in when GrassField's rebuild (which
+   *  only fires when the player crosses an 8m grass-chunk boundary, so it
+   *  can lag the true crossing by up to 8m) finally reassigns it.
+   *  Must stay comfortably above that 8m worst-case lag, or a reassignment
+   *  can land past the fade zone with no cushioning either side.
    *  Higher: smoother, but the fade becomes noticeable as its own ring
-   *  of shorter grass. Lower: less shrinking distance, more of a pop. */
-  EDGE_FADE_BAND: 6.0,
+   *  of shorter grass. Lower: risks the pop coming back. */
+  EDGE_FADE_BAND: 12.0,
 
   /** Widen blades the camera sees mostly edge-on — either because a
    *  blade's own width axis points near-straight at the camera, or
