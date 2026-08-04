@@ -210,6 +210,7 @@ export class Terrain {
         uSunIntensity: { value: 1.0 },
         uAmbientColor: { value: new THREE.Color(0xffffff) },
         uAmbientIntensity: { value: 0.5 },
+        uLightWrap: { value: TERRAIN.LIGHT_WRAP },
       },
     });
   }

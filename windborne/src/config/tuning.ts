@@ -264,6 +264,17 @@ export const TERRAIN = {
    *  rock. Between: linear blend, with dirt as the midpoint tint. */
   SLOPE_GRASS_MAX: 0.92,
   SLOPE_ROCK_MIN: 0.55,
+
+  /** Wide wrap term for terrain lighting (PRD §6.1): a floor on the
+   *  diffuse term, so a slope facing squarely away from the sun still
+   *  gets this fraction of full sun brightness instead of dropping to
+   *  ambient-only. A plain Lambertian max(dot, 0) clips fully-shadowed
+   *  ground straight to ambient, which read as near-black once
+   *  terrain.aliveGrass got dark enough for grass contrast — there just
+   *  wasn't enough ambient light on its own to lift a colour that dark.
+   *  Higher: flatter, less contrasty shading. Lower: more dramatic
+   *  shadows, but shadowed ground gets darker fast. */
+  LIGHT_WRAP: 0.55,
 } as const;
 
 // ---------------------------------------------------------------------------

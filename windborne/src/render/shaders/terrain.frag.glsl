@@ -19,6 +19,7 @@ uniform vec3 uSunColor;
 uniform float uSunIntensity;
 uniform vec3 uAmbientColor;
 uniform float uAmbientIntensity;
+uniform float uLightWrap;
 
 varying vec3 vColor;
 varying float vGrassiness;
@@ -34,8 +35,16 @@ void main() {
 
   vec3 color = mix(vColor, fakeColor, fakeFactor);
 
+  // Wide wrap term (PRD §6.1): a plain max(dot, 0) cuts off hard exactly at
+  // the terminator, and with this terrain's deliberately dark base colour
+  // that reads as the shadowed side going almost to black — including
+  // slopes facing squarely away from the sun, not just grazing ones, so
+  // this is a floor on diffuse rather than just a softened falloff at 90
+  // degrees. uLightWrap is that floor; diffuse ramps from it up to 1 as
+  // the surface turns to face the sun.
   vec3 normal = normalize(vNormal);
-  float diffuse = max(dot(normal, uSunDirection), 0.0);
+  float ndotl = dot(normal, uSunDirection);
+  float diffuse = mix(uLightWrap, 1.0, max(ndotl, 0.0));
   vec3 lit = color * (uAmbientColor * uAmbientIntensity + uSunColor * uSunIntensity * diffuse);
 
   gl_FragColor = vec4(lit, 1.0);
