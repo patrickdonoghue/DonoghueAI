@@ -233,6 +233,38 @@ export const CAMERA = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// PLAYER LIGHT
+// ---------------------------------------------------------------------------
+
+/** A soft glow that travels with the player, brightening grass and terrain
+ *  nearby regardless of sun angle or shadow. Not in the PRD — added because
+ *  the wrap/floor fixes on grass and terrain lighting have a ceiling (the
+ *  base colours' own brightness), and the ground directly around the
+ *  player, which is what you're actually looking at most of the time,
+ *  benefits from its own light rather than depending entirely on the sun.
+ *  Colour reuses the sun's own colour (already available in both shaders)
+ *  rather than introducing a new palette entry, so it reads as "catching
+ *  warm light" rather than an arbitrary glow. */
+export const PLAYER_LIGHT = {
+  /** Radius in metres, measured horizontally (XZ) from the player, not
+   *  true 3D distance — like a light shining straight down, so it lights
+   *  the ground below at any altitude instead of fading out as the player
+   *  climbs. Full glow at 0, fading to none by this distance.
+   *  Raised from 12 once XZ-only distance made altitude stop competing
+   *  with it — at 12 with true 3D distance, ordinary cruising altitude
+   *  alone used up most of the radius before it ever reached the ground. */
+  RADIUS: 18.0,
+
+  /** Multiplier on the sun's colour at the player's own position. 1.0
+   *  roughly doubles the sun's usual maximum contribution right at the
+   *  player, which is deliberate — the point is for the immediate area to
+   *  always read as clearly lit.
+   *  Higher: the player visibly carries its own light. Lower: more
+   *  subtle, closer to just softening the nearest shadows. */
+  INTENSITY: 0.9,
+} as const;
+
+// ---------------------------------------------------------------------------
 // TERRAIN
 // ---------------------------------------------------------------------------
 

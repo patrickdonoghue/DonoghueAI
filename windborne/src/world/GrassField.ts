@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GRASS, WIND } from '../config/tuning';
+import { GRASS, PLAYER_LIGHT, WIND } from '../config/tuning';
 import { paletteColor, type Palette } from '../config/palettes';
 import { chunkRandom } from '../core/Random';
 import type { LevelBounds } from '../player/WindController';
@@ -388,6 +388,8 @@ export class GrassField {
         uAmbientColor: { value: new THREE.Color(0xffffff) },
         uAmbientIntensity: { value: 0.5 },
         uLightWrap: { value: GRASS.LIGHT_WRAP },
+        uPlayerGlowRadius: { value: PLAYER_LIGHT.RADIUS },
+        uPlayerGlowIntensity: { value: PLAYER_LIGHT.INTENSITY },
       },
     });
   }

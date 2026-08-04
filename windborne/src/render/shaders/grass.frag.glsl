@@ -26,6 +26,9 @@ uniform vec3 uAmbientColor;
 uniform float uAmbientIntensity;
 uniform float uLightWrap;
 uniform vec3 uCameraForward;
+uniform vec3 uPlayerPosition;
+uniform float uPlayerGlowRadius;
+uniform float uPlayerGlowIntensity;
 
 varying vec3 vWorldPosition;
 varying vec3 vNormal;
@@ -57,6 +60,15 @@ void main() {
   // blade from the camera's point of view.
   float backlit = pow(clamp(-dot(uCameraForward, uSunDirection), 0.0, 1.0), uBacklightPower);
   lit += uSunColor * uSunIntensity * backlit * uBacklightStrength * color;
+
+  // Player glow: see Terrain's fragment shader for the full reasoning —
+  // same soft, travels-with-the-player light, same formula (XZ distance
+  // only, like a light shining straight down so it doesn't fade out as
+  // the player gains altitude), so the two systems light the immediate
+  // area consistently.
+  float distToPlayerXZ = length(vWorldPosition.xz - uPlayerPosition.xz);
+  float glow = uPlayerGlowIntensity * (1.0 - smoothstep(0.0, uPlayerGlowRadius, distToPlayerXZ));
+  lit += color * uSunColor * glow;
 
   gl_FragColor = vec4(lit, 1.0);
 }

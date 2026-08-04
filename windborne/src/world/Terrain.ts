@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
-import { GRASS, TERRAIN } from '../config/tuning';
+import { GRASS, PLAYER_LIGHT, TERRAIN } from '../config/tuning';
 import { paletteColor, type Palette } from '../config/palettes';
 import { mulberry32 } from '../core/Random';
 import type { LevelBounds } from '../player/WindController';
@@ -211,6 +211,8 @@ export class Terrain {
         uAmbientColor: { value: new THREE.Color(0xffffff) },
         uAmbientIntensity: { value: 0.5 },
         uLightWrap: { value: TERRAIN.LIGHT_WRAP },
+        uPlayerGlowRadius: { value: PLAYER_LIGHT.RADIUS },
+        uPlayerGlowIntensity: { value: PLAYER_LIGHT.INTENSITY },
       },
     });
   }

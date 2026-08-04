@@ -20,6 +20,8 @@ uniform float uSunIntensity;
 uniform vec3 uAmbientColor;
 uniform float uAmbientIntensity;
 uniform float uLightWrap;
+uniform float uPlayerGlowRadius;
+uniform float uPlayerGlowIntensity;
 
 varying vec3 vColor;
 varying float vGrassiness;
@@ -46,6 +48,17 @@ void main() {
   float ndotl = dot(normal, uSunDirection);
   float diffuse = mix(uLightWrap, 1.0, max(ndotl, 0.0));
   vec3 lit = color * (uAmbientColor * uAmbientIntensity + uSunColor * uSunIntensity * diffuse);
+
+  // Player glow: a soft light that travels with the player, so the ground
+  // immediately around it reads as clearly lit regardless of sun angle or
+  // shadow — not from the PRD, added because the wrap/floor fixes above
+  // have a ceiling (the base colour's own brightness) and the area you're
+  // actually looking at most of the time benefits from its own light
+  // rather than depending entirely on the sun. XZ distance only, like a
+  // light shining straight down, so the ground below reads as lit at any
+  // altitude rather than fading out as the player climbs.
+  float glow = uPlayerGlowIntensity * (1.0 - smoothstep(0.0, uPlayerGlowRadius, distToPlayer));
+  lit += color * uSunColor * glow;
 
   gl_FragColor = vec4(lit, 1.0);
 }
