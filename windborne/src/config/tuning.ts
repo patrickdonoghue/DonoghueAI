@@ -360,6 +360,17 @@ export const GRASS = {
   /** Fake ambient occlusion: how much to darken the blade toward its root. */
   ROOT_DARKEN: 0.45,
 
+  /** Wrap/floor term for grass lighting, same idea as TERRAIN.LIGHT_WRAP:
+   *  a blade's normal is just local (0,0,1) rotated by that instance's
+   *  random yaw, so roughly half of any dense patch faces away from the
+   *  sun at any given moment. Without a floor, a plain Lambertian term
+   *  sends that whole half to ambient-only, and the field reads as
+   *  patchy-dark rather than evenly lit — much more visible here than on
+   *  terrain, since real grass dominates most of the close-up view.
+   *  Higher: flatter-looking grass. Lower: more per-blade contrast, but
+   *  the shadowed half gets dark fast. */
+  LIGHT_WRAP: 0.55,
+
   /** Low-frequency Perlin patchiness so the field isn't a uniform carpet.
    *  Scale is in world units; strength is a 0–1 colour multiplier range. */
   PATCH_SCALE: 0.06,

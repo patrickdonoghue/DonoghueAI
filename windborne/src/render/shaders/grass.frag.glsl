@@ -24,6 +24,7 @@ uniform vec3 uSunColor;
 uniform float uSunIntensity;
 uniform vec3 uAmbientColor;
 uniform float uAmbientIntensity;
+uniform float uLightWrap;
 uniform vec3 uCameraForward;
 
 varying vec3 vWorldPosition;
@@ -42,8 +43,14 @@ void main() {
   float patchNoise = snoise(vWorldPosition.xz * uPatchScale) * 0.5 + 0.5;
   color = mix(color, color * patchNoise, uPatchStrength);
 
+  // Wrap/floor term, same reasoning as Terrain's: a blade's normal is
+  // just its local (0,0,1) rotated by that instance's random yaw, so
+  // roughly half of any dense patch faces away from the sun at any
+  // moment. A plain max(dot, 0) sent that half to ambient-only and the
+  // whole field read as patchy-dark rather than evenly lit.
   vec3 normal = normalize(vNormal);
-  float diffuse = max(dot(normal, uSunDirection), 0.0);
+  float ndotl = dot(normal, uSunDirection);
+  float diffuse = mix(uLightWrap, 1.0, max(ndotl, 0.0));
   vec3 lit = color * (uAmbientColor * uAmbientIntensity + uSunColor * uSunIntensity * diffuse);
 
   // Backlight/translucency: strongest when the sun is roughly behind the
