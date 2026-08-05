@@ -605,5 +605,5 @@ export const POST = {
    *  it — grass.frag.glsl/terrain.frag.glsl call it explicitly at
    *  gl_FragColor, or this constant would have no effect on them at all.
    *  1.0 is neutral; >1 genuinely brightens the whole scene, sun and all. */
-  EXPOSURE: 1.4,
+  EXPOSURE: 2.6,
 };
