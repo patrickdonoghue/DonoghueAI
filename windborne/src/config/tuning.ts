@@ -593,5 +593,17 @@ export const POST = {
   VIGNETTE_STRENGTH: 0.25,
   VIGNETTE_SMOOTHNESS: 0.5,
 
-  EXPOSURE: 1.0,
-} as const;
+  /** LinearToneMapping exposure multiplier (renderer.toneMappingExposure).
+   *  Found during the Phase 1 fresh review: without tone mapping, scene
+   *  lighting can only ever dim a surface's own base colour, never brighten
+   *  it past that value — and sRGB→linear conversion (see paletteColor())
+   *  disproportionately crushes already-dark palette colours further.
+   *  That's why repeated rounds of lightening palette hexes and raising
+   *  LIGHT_WRAP floors never fully fixed "still too dark": neither one adds
+   *  actual exposure headroom. Also found: three.js only *defines* the
+   *  toneMapping() GLSL function for custom ShaderMaterials, it never calls
+   *  it — grass.frag.glsl/terrain.frag.glsl call it explicitly at
+   *  gl_FragColor, or this constant would have no effect on them at all.
+   *  1.0 is neutral; >1 genuinely brightens the whole scene, sun and all. */
+  EXPOSURE: 1.4,
+};

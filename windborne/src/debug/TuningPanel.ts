@@ -1,5 +1,6 @@
+import * as THREE from 'three';
 import { Pane } from 'tweakpane';
-import { CAMERA, FLIGHT, INPUT } from '../config/tuning';
+import { CAMERA, FLIGHT, INPUT, POST } from '../config/tuning';
 
 /**
  * Dev-only tweakpane panel wired directly to the tuning.ts constant
@@ -11,7 +12,7 @@ export class TuningPanel {
   private readonly pane: Pane;
   private readonly tiltState = { enabled: false };
 
-  constructor(onSetTiltEnabled: (enabled: boolean) => void) {
+  constructor(onSetTiltEnabled: (enabled: boolean) => void, renderer: THREE.WebGLRenderer) {
     this.pane = new Pane({ title: 'Windborne — tuning', expanded: true });
 
     const flight = this.pane.addFolder({ title: 'Flight' });
@@ -56,6 +57,13 @@ export class TuningPanel {
     camera.addBinding(CAMERA, 'FOV_TAU', { min: 0.05, max: 2, step: 0.01 });
     camera.addBinding(CAMERA, 'ROLL_MAX', { min: 0, max: Math.PI / 4, step: 0.01, label: 'ROLL_MAX (rad)' });
     camera.addBinding(CAMERA, 'ROLL_DAMPING', { min: 0.01, max: 1, step: 0.01 });
+
+    const post = this.pane.addFolder({ title: 'Render', expanded: false });
+    post
+      .addBinding(POST, 'EXPOSURE', { min: 0.2, max: 3, step: 0.05 })
+      .on('change', (ev) => {
+        renderer.toneMappingExposure = ev.value;
+      });
   }
 
   dispose(): void {

@@ -23,6 +23,10 @@ uniform float uLightWrap;
 uniform float uPlayerGlowRadius;
 uniform float uPlayerGlowIntensity;
 
+uniform vec3 uFogColor;
+uniform float uFogNear;
+uniform float uFogFar;
+
 varying vec3 vColor;
 varying float vGrassiness;
 varying vec3 vWorldPosition;
@@ -60,5 +64,20 @@ void main() {
   float glow = uPlayerGlowIntensity * (1.0 - smoothstep(0.0, uPlayerGlowRadius, distToPlayer));
   lit += color * uSunColor * glow;
 
-  gl_FragColor = vec4(lit, 1.0);
+  // Fog: distant terrain hazes toward the sky colour instead of staying at
+  // its raw shaded colour all the way to the horizon. Custom ShaderMaterial
+  // ignores scene.fog entirely unless implemented by hand, so without this
+  // the terrain and grass were the only things in the scene never getting
+  // fogged (the stock-material player cone was).
+  float fogDist = length(vWorldPosition - cameraPosition);
+  float fogFactor = smoothstep(uFogNear, uFogFar, fogDist);
+  lit = mix(lit, uFogColor, fogFactor);
+
+  // toneMapping() is auto-injected by three (this material's toneMapped
+  // defaults true) but, unlike built-in materials, a fully custom
+  // ShaderMaterial never calls it automatically — found during the fresh
+  // review as the actual reason raising POST.EXPOSURE had zero visible
+  // effect on terrain/grass despite clearly changing the player cone's
+  // brightness (a stock MeshStandardMaterial, which does call it).
+  gl_FragColor = vec4(toneMapping(lit), 1.0);
 }

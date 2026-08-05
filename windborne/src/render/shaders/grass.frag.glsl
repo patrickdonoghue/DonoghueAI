@@ -30,6 +30,10 @@ uniform vec3 uPlayerPosition;
 uniform float uPlayerGlowRadius;
 uniform float uPlayerGlowIntensity;
 
+uniform vec3 uFogColor;
+uniform float uFogNear;
+uniform float uFogFar;
+
 varying vec3 vWorldPosition;
 varying vec3 vNormal;
 varying float vHeightFraction;
@@ -70,5 +74,14 @@ void main() {
   float glow = uPlayerGlowIntensity * (1.0 - smoothstep(0.0, uPlayerGlowRadius, distToPlayerXZ));
   lit += color * uSunColor * glow;
 
-  gl_FragColor = vec4(lit, 1.0);
+  // Fog: same reasoning as Terrain's fragment shader — a fully custom
+  // ShaderMaterial ignores scene.fog unless implemented by hand, so grass
+  // was never hazing toward the sky colour at distance either.
+  float fogDist = length(vWorldPosition - cameraPosition);
+  float fogFactor = smoothstep(uFogNear, uFogFar, fogDist);
+  lit = mix(lit, uFogColor, fogFactor);
+
+  // See Terrain's fragment shader: toneMapping() is auto-injected but never
+  // auto-called for a custom ShaderMaterial, unlike built-in materials.
+  gl_FragColor = vec4(toneMapping(lit), 1.0);
 }

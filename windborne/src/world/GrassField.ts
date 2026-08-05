@@ -166,9 +166,16 @@ export class GrassField {
           continue; // skip chunks that fall outside the level bounds
         }
 
-        const centerX = originX + chunkSize / 2;
-        const centerZ = originZ + chunkSize / 2;
-        const distance = Math.hypot(centerX - playerPosition.x, centerZ - playerPosition.z);
+        // Nearest point IN the chunk, not its center — a chunk is 8x8m, so
+        // using the center under/over-estimates any given blade's true
+        // distance by up to half the diagonal (~5.7m). Combined with the
+        // up-to-8m lag before a rebuild catches up to the player crossing
+        // a chunk boundary, that pushed the worst case past the 12m fade
+        // band built to hide exactly this, which is what kept the LOD
+        // transition visible as a pop despite two rounds of fade fixes.
+        const nearestX = THREE.MathUtils.clamp(playerPosition.x, originX, originX + chunkSize);
+        const nearestZ = THREE.MathUtils.clamp(playerPosition.z, originZ, originZ + chunkSize);
+        const distance = Math.hypot(nearestX - playerPosition.x, nearestZ - playerPosition.z);
 
         let ringIndex = -1;
         for (let i = 0; i < rings.length; i++) {
@@ -390,6 +397,10 @@ export class GrassField {
         uLightWrap: { value: GRASS.LIGHT_WRAP },
         uPlayerGlowRadius: { value: PLAYER_LIGHT.RADIUS },
         uPlayerGlowIntensity: { value: PLAYER_LIGHT.INTENSITY },
+
+        uFogColor: { value: paletteColor(palette.fog.color) },
+        uFogNear: { value: palette.fog.near },
+        uFogFar: { value: palette.fog.far },
       },
     });
   }

@@ -213,6 +213,10 @@ export class Terrain {
         uLightWrap: { value: TERRAIN.LIGHT_WRAP },
         uPlayerGlowRadius: { value: PLAYER_LIGHT.RADIUS },
         uPlayerGlowIntensity: { value: PLAYER_LIGHT.INTENSITY },
+
+        uFogColor: { value: paletteColor(palette.fog.color) },
+        uFogNear: { value: palette.fog.near },
+        uFogFar: { value: palette.fog.far },
       },
     });
   }

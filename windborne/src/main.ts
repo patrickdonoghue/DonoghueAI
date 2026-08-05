@@ -6,6 +6,7 @@ import { ChaseCamera } from './player/ChaseCamera';
 import { Terrain, type TerrainConfig } from './world/Terrain';
 import { GrassField } from './world/GrassField';
 import { getPalette, paletteColor } from './config/palettes';
+import { POST } from './config/tuning';
 
 // ---------------------------------------------------------------------------
 // Phase 1: heightfield terrain and instanced grass. No level JSON yet
@@ -31,6 +32,13 @@ if (!appRoot) throw new Error('#app root element missing');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
+// Tone mapping + exposure: see POST.EXPOSURE's comment in tuning.ts — without
+// this, lighting can only dim a surface's base colour, never brighten it
+// past its own (sRGB-crushed) value. Linear (not ACES) because ACES's
+// filmic shadow toe fights the exposure boost instead of helping it, and
+// this is meant to be a bright, cheerful game rather than a cinematic one.
+renderer.toneMapping = THREE.LinearToneMapping;
+renderer.toneMappingExposure = POST.EXPOSURE;
 appRoot.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -136,7 +144,7 @@ if (import.meta.env.DEV) {
   perfHUD = new PerfHUD();
   new TuningPanel((enabled) => {
     void input.setTiltEnabled(enabled);
-  });
+  }, renderer);
 }
 
 loop.start();
