@@ -352,30 +352,47 @@ export const GRASS = {
    *  terrain's noise-modulated fake grass (see Terrain.ts) more room to
    *  hand off smoothly instead of needing to disguise a nearby seam.
    *  These totals now target roughly 175k visible blades:
-   *    ring 0: π·20²      × 32   ≈  40k
-   *    ring 1: π(50²−20²) × 8    ≈  48k
+   *    ring 0: π·32²      × 32   ≈ 103k
+   *    ring 1: π(50²−32²) × 8    ≈  37k
    *    ring 2: π(150²−50²)× 1.4  ≈  88k
    *  Beyond ring 2 the terrain shader fakes grass with noise-modulated
    *  colour — see Terrain.ts's fake-grass blend. A full horizon fuzz
-   *  card (billboard geometry, per the PRD) is still not built. */
+   *  card (billboard geometry, per the PRD) is still not built.
+   *
+   *  Ring 0's radius was 20 until the fresh review traced "grass popping
+   *  as I approach the ground" to this ring specifically: EDGE_FADE_BAND
+   *  fades symmetrically around EVERY boundary (see its own comment), so
+   *  with radius 20 the fade zone [8, 32] ate more than half of ring 0's
+   *  own radius — only the inner 8m around the player was ever at full,
+   *  unfaded density. That 8m core is a small fraction of the view at
+   *  altitude, easy to miss, but dominates the frame once low and close
+   *  to the ground, which is exactly when the ongoing fade/unfade across
+   *  most of the visible grass reads as popping. Raised to 32 so the
+   *  stable core (radius − EDGE_FADE_BAND) is a comfortable 20m instead
+   *  of 8m, without touching EDGE_FADE_BAND itself (still sized for the
+   *  rebuild-lag error described there, unrelated to this). */
   LOD_RINGS: [
-    { radius: 20, density: 32.0 },
+    { radius: 32, density: 32.0 },
     { radius: 50, density: 8.0 },
     { radius: 150, density: 1.4 },
   ],
 
-  /** Distance (m) on EITHER side of a LOD ring boundary (20m, 50m, 100m)
+  /** Distance (m) on EITHER side of a LOD ring boundary (32m, 50m, 150m)
    *  where blades shrink toward their root, reaching nothing exactly at
    *  the boundary. Symmetric, and identical for every ring's material —
    *  a chunk fades the same way whether it's approaching a boundary from
    *  the sparse side or the dense side, so it doesn't matter which ring's
    *  buffer it happens to be sitting in when GrassField's rebuild (which
    *  only fires when the player crosses an 8m grass-chunk boundary, so it
-   *  can lag the true crossing by up to 8m) finally reassigns it.
-   *  Must stay comfortably above that 8m worst-case lag, or a reassignment
+   *  can lag the true crossing by up to ~11m of player movement — worst
+   *  case a diagonal crossing of that chunk — finally reassigns it.
+   *  Must stay comfortably above that worst-case lag, or a reassignment
    *  can land past the fade zone with no cushioning either side.
    *  Higher: smoother, but the fade becomes noticeable as its own ring
-   *  of shorter grass. Lower: risks the pop coming back. */
+   *  of shorter grass (and eats further into whichever ring's own radius
+   *  it borders — see ring 0's own comment for what happens when a ring
+   *  is too small relative to this band). Lower: risks the pop coming
+   *  back. */
   EDGE_FADE_BAND: 12.0,
 
   /** Widen blades the camera sees mostly edge-on — either because a
