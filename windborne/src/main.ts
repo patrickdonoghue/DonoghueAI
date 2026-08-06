@@ -14,9 +14,26 @@ import { POST } from './config/tuning';
 // temporary stand-in for real level content, not an authored level.
 // ---------------------------------------------------------------------------
 const TEST_BOUNDS: LevelBounds = { min: [-250, -250], max: [250, 250] };
+
+// Terrain and grass are generated over a larger area than TEST_BOUNDS itself.
+// GrassField.rebuild() hard-excludes any chunk that doesn't fit entirely
+// within its bounds (see its own comment) with no fade at all, unlike the
+// LOD ring boundaries — confirmed by a synthetic flight test: ring 0's
+// instance count dropped 78% by x=266, just 16m past the 250 edge, which
+// WindController's boundary steering assist doesn't reliably prevent (it
+// steers, it doesn't clamp). Real authored level bounds with proper edge
+// treatment are Phase 3's job; padding generation well past where a player
+// can realistically end up sidesteps the glitch for this temporary
+// placeholder without pretending to solve level-edge design.
+const GENERATION_PADDING = 150;
+const GENERATION_BOUNDS: LevelBounds = {
+  min: [TEST_BOUNDS.min[0] - GENERATION_PADDING, TEST_BOUNDS.min[1] - GENERATION_PADDING],
+  max: [TEST_BOUNDS.max[0] + GENERATION_PADDING, TEST_BOUNDS.max[1] + GENERATION_PADDING],
+};
+
 const TEST_TERRAIN_CONFIG: TerrainConfig = {
   seed: 20260803,
-  bounds: TEST_BOUNDS,
+  bounds: GENERATION_BOUNDS,
   octaves: [
     { frequency: 0.006, amplitude: 8.0 },
     { frequency: 0.02, amplitude: 3.0 },
@@ -67,7 +84,7 @@ const terrain = new Terrain(TEST_TERRAIN_CONFIG, palette);
 scene.add(terrain.group);
 
 const grassField = new GrassField(
-  { seed: TEST_TERRAIN_CONFIG.seed, bounds: TEST_BOUNDS, getHeightAt: terrain.getHeightAt.bind(terrain) },
+  { seed: TEST_TERRAIN_CONFIG.seed, bounds: GENERATION_BOUNDS, getHeightAt: terrain.getHeightAt.bind(terrain) },
   palette,
 );
 grassField.setLighting(sunDirection, sunColor, palette.sky.sunIntensity, ambientColor, palette.sky.ambientIntensity);
