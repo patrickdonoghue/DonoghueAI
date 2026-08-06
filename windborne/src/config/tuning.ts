@@ -427,7 +427,7 @@ export const GRASS = {
 
   /** Translucency when the sun is behind the blade. A large part of why
    *  a grass field looks alive rather than plastic. */
-  BACKLIGHT_STRENGTH: 0.8,
+  BACKLIGHT_STRENGTH: 0.5,
   BACKLIGHT_POWER: 3.0,
 
   /** Low-frequency noise scale for the terrain's fake-grass tint beyond
@@ -622,5 +622,5 @@ export const POST = {
    *  it — grass.frag.glsl/terrain.frag.glsl call it explicitly at
    *  gl_FragColor, or this constant would have no effect on them at all.
    *  1.0 is neutral; >1 genuinely brightens the whole scene, sun and all. */
-  EXPOSURE: 2.6,
+  EXPOSURE: 2.0,
 };
