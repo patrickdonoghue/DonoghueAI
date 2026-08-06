@@ -215,7 +215,23 @@ export class GrassField {
       mesh.count = ringCounts[ringIndex] ?? 0;
       mesh.instanceMatrix.needsUpdate = true;
       const ring = rings[ringIndex];
-      mesh.geometry.boundingSphere = new THREE.Sphere(playerPosition.clone(), ring?.radius ?? 0);
+      // InstancedMesh has its OWN boundingSphere/boundingBox — separate from
+      // (and not derived from) geometry.boundingSphere, which only bounds
+      // the single un-instanced blade shape. Frustum culling for an
+      // InstancedMesh reads THIS property, defaulting to an uninitialized
+      // {center: (0,0,0), radius: -1} that never gets computed on its own.
+      // This was the actual root cause behind the whole "grass popping"
+      // saga this session — every fix before this one was real, but each
+      // was only ever visible in the rare frames where this invalid sphere
+      // happened to let the mesh slip through culling at all; the rest of
+      // the time the entire ring was being skipped before the GPU ever saw
+      // it, independent of ring radii, capacity, or chunk precision.
+      const radius = ring?.radius ?? 0;
+      mesh.boundingSphere = new THREE.Sphere(playerPosition.clone(), radius);
+      mesh.boundingBox = new THREE.Box3(
+        new THREE.Vector3(playerPosition.x - radius, playerPosition.y - radius, playerPosition.z - radius),
+        new THREE.Vector3(playerPosition.x + radius, playerPosition.y + radius, playerPosition.z + radius),
+      );
     }
   }
 
