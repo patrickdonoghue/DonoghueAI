@@ -298,13 +298,52 @@ export class GrassField {
     return { tierMatrices, tierCounts };
   }
 
+  /** Found via the fresh review's video evidence: grass was silently
+   *  dropping chunks (hence "popping") ANYWHERE on the map, not just near
+   *  the LOD fade boundaries or the level edge. Root cause was this
+   *  function treating a ring's search radius as a smooth circle — but
+   *  rebuild() admits a chunk whenever its NEAREST point is within radius,
+   *  so a chunk only needs one corner inside the true radius to qualify.
+   *  A smooth-circle area estimate silently undercounts how many chunks
+   *  that can actually be, and the undercount gets worse the smaller a
+   *  ring's radius is relative to CHUNK_SIZE — exactly what happened when
+   *  ring 0's radius was raised from 20 to 32 to fix the fade-band issue:
+   *  the true worst case is 68-69 qualifying chunks (confirmed by
+   *  exhaustively scanning the player's sub-chunk offset, not sampling),
+   *  but the old formula only budgeted for ~63. Whenever the player's
+   *  sub-chunk position pushed the real count above that, rebuild() would
+   *  silently `continue` past the rest of ring 0's chunks for that frame —
+   *  no fade, no warning after the first, just missing grass until the
+   *  player's position shifted the count back down. That's what was
+   *  actually behind "grass popping in the middle of the map."
+   *
+   *  Fix: expand the radius by a full chunk diagonal before treating it as
+   *  a disk. Any chunk whose nearest point is within `ring.radius` must
+   *  have its CENTER within `ring.radius + CHUNK_SIZE*sqrt(2)/2` of the
+   *  player (the farthest any point in a chunk can sit from that chunk's
+   *  own center) — padding by a full diagonal instead of half is extra
+   *  slack for the lattice-counting itself, so this is a provable upper
+   *  bound rather than a heuristic that happens to fit today's numbers. */
   private computeRingCapacity(ringIndex: number): number {
     const rings = GRASS.LOD_RINGS;
     const ring = rings[ringIndex];
     if (!ring) return 0;
-    const innerRadius = ringIndex > 0 ? rings[ringIndex - 1]?.radius ?? 0 : 0;
-    const bandArea = Math.PI * (ring.radius * ring.radius - innerRadius * innerRadius);
-    return Math.ceil(bandArea * ring.density * RING_CAPACITY_SAFETY_MARGIN);
+
+    const finestDensity = rings[0]?.density ?? 0;
+    const chunkSize = GRASS.CHUNK_SIZE;
+    const chunkArea = chunkSize * chunkSize;
+    const targetCount = Math.round(chunkArea * finestDensity);
+    const cellsPerSide = Math.max(1, Math.ceil(Math.sqrt(targetCount)));
+    const ratio = ring.density / finestDensity;
+    // At ratio 1 (the finest ring), buildChunk's `ranks[p] < ratio` filter
+    // keeps every point deterministically — exact, not an estimate.
+    const perChunkMax = ratio >= 1 ? cellsPerSide * cellsPerSide : targetCount * ratio;
+
+    const chunkDiagonal = chunkSize * Math.SQRT2;
+    const effectiveRadius = ring.radius + chunkDiagonal;
+    const maxChunks = Math.ceil((Math.PI * effectiveRadius * effectiveRadius) / chunkArea);
+
+    return Math.ceil(maxChunks * perChunkMax * RING_CAPACITY_SAFETY_MARGIN);
   }
 
   /** 5 segments → 5 paired cross-section levels (t = 0, 0.2, 0.4, 0.6, 0.8)
