@@ -27,6 +27,14 @@ uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
 
+// The vitality field (PRD §5.4): dead land shows uDeadColor where the
+// slope blend would show grass; rock and dirt don't die, so the effect
+// is gated by vGrassiness.
+uniform sampler2D uVitalityMap;
+uniform vec2 uVitalityBoundsMin;
+uniform vec2 uVitalityBoundsSize;
+uniform vec3 uDeadColor;
+
 varying vec3 vColor;
 varying float vGrassiness;
 varying vec3 vWorldPosition;
@@ -40,6 +48,12 @@ void main() {
   vec3 fakeColor = mix(uFakeGrassBase, uFakeGrassBright, patchNoise);
 
   vec3 color = mix(vColor, fakeColor, fakeFactor);
+
+  // Vitality: fade grassy ground (including the fake-grass tint above,
+  // which is already folded into `color`) toward the dead grey-brown.
+  vec2 vitalityUV = (vWorldPosition.xz - uVitalityBoundsMin) / uVitalityBoundsSize;
+  float vitality = texture2D(uVitalityMap, vitalityUV).r;
+  color = mix(color, uDeadColor, (1.0 - vitality) * vGrassiness);
 
   // Wide wrap term (PRD §6.1): a plain max(dot, 0) cuts off hard exactly at
   // the terminator, and with this terrain's deliberately dark base colour

@@ -11,7 +11,6 @@ uniform vec3 uAliveBase;
 uniform vec3 uAliveTip;
 uniform vec3 uDeadBase;
 uniform vec3 uDeadTip;
-uniform float uVitality; // 0 dead, 1 alive — always 1.0 until Phase 2's VitalityField
 
 uniform float uRootDarken;
 uniform float uPatchScale;
@@ -34,13 +33,23 @@ uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
 
+// The vitality field (PRD §5.4), sampled HERE in the fragment stage — a
+// vertex-stage fetch of this same texture silently returned 0 on at least
+// one driver, so colour reads it per-fragment (which also gives the
+// restored green its soft texel-smooth edge across a single blade).
+uniform sampler2D uVitalityMap;
+uniform vec2 uVitalityBoundsMin;
+uniform vec2 uVitalityBoundsSize;
+
 varying vec3 vWorldPosition;
 varying vec3 vNormal;
 varying float vHeightFraction;
 
 void main() {
-  vec3 baseColor = mix(uDeadBase, uAliveBase, uVitality);
-  vec3 tipColor = mix(uDeadTip, uAliveTip, uVitality);
+  vec2 vitalityUV = (vWorldPosition.xz - uVitalityBoundsMin) / uVitalityBoundsSize;
+  float vitality = texture2D(uVitalityMap, vitalityUV).r;
+  vec3 baseColor = mix(uDeadBase, uAliveBase, vitality);
+  vec3 tipColor = mix(uDeadTip, uAliveTip, vitality);
   vec3 color = mix(baseColor, tipColor, vHeightFraction);
 
   // Fake ambient occlusion: darken toward the root.

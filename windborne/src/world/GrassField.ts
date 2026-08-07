@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GRASS, PLAYER_LIGHT, WIND } from '../config/tuning';
+import { GRASS, PLAYER_LIGHT, VITALITY, WIND } from '../config/tuning';
 import { paletteColor, type Palette } from '../config/palettes';
 import { chunkRandom } from '../core/Random';
 import type { LevelBounds } from '../player/WindController';
@@ -23,6 +23,9 @@ interface ChunkData {
    *  the same blue-noise point set (see buildChunk) so a blade doesn't pop
    *  to an unrelated position when its chunk changes ring. */
   tierMatrices: Float32Array[];
+  /** Matching xz pairs per tier — rebuild() samples the vitality field at
+   *  these to fill the per-blade aVitality attribute. */
+  tierPositions: Float32Array[];
   tierCounts: number[];
 }
 
@@ -44,9 +47,15 @@ interface ChunkData {
 export class GrassField {
   readonly group = new THREE.Group();
 
+  /** Reads the vitality field on the CPU (VitalityField.sampleAt), wired
+   *  by main.ts. Drives per-blade height via the aVitality attribute —
+   *  see grass.vert.glsl for why this is an attribute, not a sampler. */
+  sampleVitality: ((x: number, z: number) => number) | undefined;
+
   private readonly config: GrassFieldConfig;
   private readonly material: THREE.ShaderMaterial;
   private readonly ringMeshes: THREE.InstancedMesh[] = [];
+  private readonly ringVitalityAttributes: THREE.InstancedBufferAttribute[] = [];
   private readonly ringCapacities: number[] = [];
   private readonly chunkCache = new Map<string, ChunkData>();
   private hasWarnedRingOverflow = false;
@@ -82,6 +91,10 @@ export class GrassField {
       const mesh = new THREE.InstancedMesh(geometry, this.material, capacity);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.count = 0;
+      const vitalityAttribute = new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1);
+      vitalityAttribute.setUsage(THREE.DynamicDrawUsage);
+      geometry.setAttribute('aVitality', vitalityAttribute);
+      this.ringVitalityAttributes.push(vitalityAttribute);
       this.ringMeshes.push(mesh);
       this.group.add(mesh);
 
@@ -208,8 +221,9 @@ export class GrassField {
 
         const chunk = this.getOrBuildChunk(cx, cz, originX, originZ);
         const matrices = chunk.tierMatrices[ringIndex];
+        const positionsXZ = chunk.tierPositions[ringIndex];
         const count = chunk.tierCounts[ringIndex];
-        if (!matrices || count === undefined) continue;
+        if (!matrices || !positionsXZ || count === undefined) continue;
 
         const capacity = this.ringCapacities[ringIndex] ?? 0;
         const used = ringCounts[ringIndex] ?? 0;
@@ -222,8 +236,18 @@ export class GrassField {
         }
 
         const mesh = this.ringMeshes[ringIndex];
-        if (!mesh) continue;
+        const vitalityAttribute = this.ringVitalityAttributes[ringIndex];
+        if (!mesh || !vitalityAttribute) continue;
         (mesh.instanceMatrix.array as Float32Array).set(matrices.subarray(0, count * 16), used * 16);
+        const vitalityArray = vitalityAttribute.array as Float32Array;
+        const sample = this.sampleVitality;
+        if (sample) {
+          for (let k = 0; k < count; k++) {
+            vitalityArray[used + k] = sample(positionsXZ[k * 2]!, positionsXZ[k * 2 + 1]!);
+          }
+        } else {
+          vitalityArray.fill(0, used, used + count);
+        }
         ringCounts[ringIndex] = used + count;
       }
     }
@@ -233,6 +257,8 @@ export class GrassField {
       if (!mesh) continue;
       mesh.count = ringCounts[ringIndex] ?? 0;
       mesh.instanceMatrix.needsUpdate = true;
+      const vitalityAttribute = this.ringVitalityAttributes[ringIndex];
+      if (vitalityAttribute) vitalityAttribute.needsUpdate = true;
       const ring = rings[ringIndex];
       // InstancedMesh has its OWN boundingSphere/boundingBox — separate from
       // (and not derived from) geometry.boundingSphere, which only bounds
@@ -306,6 +332,7 @@ export class GrassField {
     const scratchScale = new THREE.Vector3();
 
     const tierMatrices: Float32Array[] = [];
+    const tierPositions: Float32Array[] = [];
     const tierCounts: number[] = [];
 
     for (const ring of GRASS.LOD_RINGS) {
@@ -316,13 +343,16 @@ export class GrassField {
       }
 
       const buffer = new Float32Array(kept.length * 16);
+      const positionsXZ = new Float32Array(kept.length * 2);
       for (let k = 0; k < kept.length; k++) {
         const p = kept[k];
         if (p === undefined) continue;
         const x = xs[p] ?? 0;
         const z = zs[p] ?? 0;
         const y = this.config.getHeightAt(x, z);
-        const height = GRASS.HEIGHT_ALIVE * (heightScales[p] ?? 1); // vitality lerp deferred to Phase 2
+        // Baked at the ALIVE height; the shader shrinks dead blades via
+        // the per-instance aVitality attribute (see rebuild()).
+        const height = GRASS.HEIGHT_ALIVE * (heightScales[p] ?? 1);
 
         scratchPos.set(x, y, z);
         scratchEuler.set(0, yaws[p] ?? 0, 0);
@@ -330,13 +360,16 @@ export class GrassField {
         scratchScale.set(1, height, height); // scale.z too, so the local-Z static curve scales with height
         scratchMatrix.compose(scratchPos, scratchQuat, scratchScale);
         scratchMatrix.toArray(buffer, k * 16);
+        positionsXZ[k * 2] = x;
+        positionsXZ[k * 2 + 1] = z;
       }
 
       tierMatrices.push(buffer);
+      tierPositions.push(positionsXZ);
       tierCounts.push(kept.length);
     }
 
-    return { tierMatrices, tierCounts };
+    return { tierMatrices, tierPositions, tierCounts };
   }
 
   /** Found via the fresh review's video evidence: grass was silently
@@ -461,7 +494,16 @@ export class GrassField {
         uAliveTip: { value: paletteColor(palette.grass.aliveTip) },
         uDeadBase: { value: paletteColor(palette.grass.deadBase) },
         uDeadTip: { value: paletteColor(palette.grass.deadTip) },
-        uVitality: { value: 1.0 }, // Phase 2's VitalityField will replace this constant
+
+        // The vitality field (PRD §5.4) — texture wired by setVitality()
+        // once main.ts has built the VitalityField.
+        uVitalityMap: { value: null },
+        uVitalityBoundsMin: { value: new THREE.Vector2() },
+        uVitalityBoundsSize: { value: new THREE.Vector2(1, 1) },
+        // Blade heights were baked at HEIGHT_ALIVE, so the dead scale is
+        // the ratio the shader shrinks a fully dead blade down to.
+        uDeadHeightScale: { value: GRASS.HEIGHT_DEAD / GRASS.HEIGHT_ALIVE },
+        uVitalityHeightInfluence: { value: VITALITY.HEIGHT_INFLUENCE },
 
         uRootDarken: { value: GRASS.ROOT_DARKEN },
         uPatchScale: { value: GRASS.PATCH_SCALE },
@@ -483,6 +525,21 @@ export class GrassField {
         uFogFar: { value: palette.fog.far },
       },
     });
+  }
+
+  /** Force a ring-buffer rebuild on the next fixed step. Called on every
+   *  bloom so per-blade vitality heights update immediately instead of
+   *  waiting for the player's next chunk crossing. */
+  requestRebuild(): void {
+    this.lastRebuildChunkX = Number.NaN;
+    this.lastRebuildChunkZ = Number.NaN;
+  }
+
+  /** Wire the shared vitality field in — called once by main.ts. */
+  setVitality(texture: THREE.Texture, boundsMin: THREE.Vector2, boundsSize: THREE.Vector2): void {
+    this.material.uniforms.uVitalityMap!.value = texture;
+    (this.material.uniforms.uVitalityBoundsMin!.value as THREE.Vector2).copy(boundsMin);
+    (this.material.uniforms.uVitalityBoundsSize!.value as THREE.Vector2).copy(boundsSize);
   }
 
   /** Main.ts calls this once, after computing the palette-derived sun

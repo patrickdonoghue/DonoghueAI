@@ -307,7 +307,20 @@ export class Terrain {
         uFogColor: { value: paletteColor(palette.fog.color) },
         uFogNear: { value: palette.fog.near },
         uFogFar: { value: palette.fog.far },
+
+        // Vitality field (PRD §5.4) — texture wired by setVitality().
+        uVitalityMap: { value: null },
+        uVitalityBoundsMin: { value: new THREE.Vector2() },
+        uVitalityBoundsSize: { value: new THREE.Vector2(1, 1) },
+        uDeadColor: { value: paletteColor(palette.terrain.deadGrass) },
       },
     });
+  }
+
+  /** Wire the shared vitality field in — called once by main.ts. */
+  setVitality(texture: THREE.Texture, boundsMin: THREE.Vector2, boundsSize: THREE.Vector2): void {
+    this.material.uniforms.uVitalityMap!.value = texture;
+    (this.material.uniforms.uVitalityBoundsMin!.value as THREE.Vector2).copy(boundsMin);
+    (this.material.uniforms.uVitalityBoundsSize!.value as THREE.Vector2).copy(boundsSize);
   }
 }

@@ -478,6 +478,31 @@ export const WIND = {
 // BLOOMING & VITALITY
 // ---------------------------------------------------------------------------
 
+export const FLOWERS = {
+  /** Flower proportions, metres. The whole plant is deliberately small —
+   *  flowers read through colour and number, not individual size, and a
+   *  petal quad the player collects is only 0.18m (PETALS.SIZE).
+   *  STEM_HEIGHT must clear GRASS.HEIGHT_ALIVE (0.55) or bloomed flowers
+   *  vanish into the very grass their own bloom just restored. */
+  STEM_HEIGHT: 0.75,
+  PETAL_LENGTH: 0.16,
+  PETAL_WIDTH: 0.1,
+  PETAL_COUNT: 5,
+  CENTER_RADIUS: 0.045,
+
+  /** Unbloomed bud: how folded-up the petals sit (radians from horizontal)
+   *  and how squashed the stem is. Bloomed values are the open pose.
+   *  Wider FOLD_CLOSED reads as a tighter bud. */
+  FOLD_CLOSED: 1.35,
+  FOLD_OPEN: 0.3,
+  STEM_SCALE_CLOSED: 0.55,
+
+  /** How dim an unbloomed bud renders relative to its bloomed colour.
+   *  Low enough that a field of buds reads as "asleep", high enough that
+   *  buds are still findable against dead grass. */
+  BUD_DIMMING: 0.35,
+} as const;
+
 export const BLOOM = {
   /** How close you must pass to bloom a flower. Generous on purpose —
    *  missing a flower you aimed at is the single most annoying thing
@@ -499,12 +524,22 @@ export const VITALITY = {
    *  a soft colour mask, not a collision map. */
   RESOLUTION: 512,
 
-  /** Radius in metres of the soft splat a single bloom writes. */
-  SPLAT_RADIUS: 6.0,
-  SPLAT_STRENGTH: 0.85,
+  /** Radius in metres of the soft splat a single bloom writes. Sized so
+   *  that flowers a few metres apart fuse into a continuous ribbon of
+   *  life rather than a dotted line. */
+  SPLAT_RADIUS: 9.0,
+  SPLAT_STRENGTH: 1.0,
 
-  /** Falloff exponent. 2.0 is a smooth quadratic edge; higher gives a
-   *  harder-edged puddle of colour. */
+  /** Fraction of the radius at FULL strength before falloff begins.
+   *  Without a flat core, a quadratic falloff leaves only the exact
+   *  centre fully alive and the restored green reads as a faint tint
+   *  against the (deliberately pale) dead palette — this was found the
+   *  hard way when the first bloom line produced no visible green at
+   *  all. The core makes each bloom a solid puddle with a soft rim. */
+  SPLAT_CORE: 0.45,
+
+  /** Falloff exponent for the rim beyond SPLAT_CORE. 2.0 is a smooth
+   *  quadratic edge; higher gives a harder-edged puddle of colour. */
   SPLAT_FALLOFF: 2.0,
 
   /** Default duration for a cluster's vitality-flood event. */

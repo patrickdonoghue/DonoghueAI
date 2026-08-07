@@ -36,6 +36,19 @@ uniform vec3 uPlayerPosition;
 uniform vec3 uRingBoundaries; // the 3 LOD ring radii (e.g. 20, 50, 100) — see the fade note below
 uniform float uFadeBand;
 
+// The vitality field (PRD §5.4): 0 = dead land, 1 = alive. Dead grass is
+// shorter (uDeadHeightScale, as a fraction of the baked alive height) and
+// stiffer (wind response scales down). The value arrives as a PER-BLADE
+// INSTANCED ATTRIBUTE (refreshed each GrassField rebuild, and a rebuild
+// is forced on every bloom) rather than a texture sample: vertex-stage
+// fetches of the vitality render target silently returned 0 on at least
+// one driver while fragment-stage samples of the identical texture worked
+// fine — the colour side therefore samples the texture in the fragment
+// shader, and the geometry side uses this attribute.
+attribute float aVitality;
+uniform float uDeadHeightScale;
+uniform float uVitalityHeightInfluence;
+
 varying vec3 vWorldPosition;
 varying vec3 vNormal;
 varying float vHeightFraction;
@@ -58,6 +71,10 @@ void main() {
 
   vec3 rootWorldPos = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
   vec2 rootXZ = rootWorldPos.xz;
+
+  // Height shrinks toward uDeadHeightScale as vitality falls.
+  float vitality = aVitality;
+  localPos.y *= mix(1.0, uDeadHeightScale, (1.0 - vitality) * uVitalityHeightInfluence);
 
   // LOD edge fade: shrink a blade toward its root as it nears ANY ring
   // boundary, from EITHER side, identically regardless of which ring's
@@ -95,7 +112,11 @@ void main() {
   float gust = snoise(rootXZ * uWindGust.x + uWindDirection * uTime * uWindGust.z);
   float windMagnitude = uWindBaseStrength + n1 * uWindLayer1.y + n2 * uWindLayer2.y + gust * uWindGust.y;
   float windFalloff = pow(t, 1.5); // pinned at the root, most bend at the tip
-  vec2 windOffsetXZ = uWindDirection * windMagnitude * windFalloff * actualHeight;
+  // Dead grass is stiffer as well as shorter — it barely answers the wind,
+  // which is most of why a dead field reads as lifeless before you're
+  // close enough to see colour.
+  float stiffness = mix(0.35, 1.0, vitality);
+  vec2 windOffsetXZ = uWindDirection * windMagnitude * windFalloff * actualHeight * stiffness;
 
   // Player deflection wake: each recent trail sample pushes nearby blades
   // away radially. Weight is precomputed on the CPU from how long ago the
