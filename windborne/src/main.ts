@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Loop } from './core/Loop';
 import { Input } from './core/Input';
 import { WindController, type LevelBounds } from './player/WindController';
+import { PetalTrail } from './player/PetalTrail';
 import { ChaseCamera } from './player/ChaseCamera';
 import { Terrain, type TerrainConfig } from './world/Terrain';
 import { GrassField } from './world/GrassField';
@@ -93,13 +94,10 @@ terrain.setLighting(sunDirection, sunColor, palette.sky.sunIntensity, ambientCol
 
 const getGroundHeight = terrain.getHeightAt.bind(terrain);
 
-// The player: a coloured cone standing in for the lead petal until
-// PetalTrail exists in Phase 2.
-const player = new THREE.Mesh(
-  new THREE.ConeGeometry(0.5, 1.6, 12),
-  new THREE.MeshStandardMaterial({ color: 0xf2a0c4 }),
-);
-scene.add(player);
+// The player is the lead petal of the trail (PRD §5.2) — this replaces
+// the placeholder cone from Phases 0–1.
+const petalTrail = new PetalTrail(palette, TEST_TERRAIN_CONFIG.seed);
+scene.add(petalTrail.mesh);
 
 const windController = new WindController();
 const spawnGroundY = terrain.getHeightAt(0, 0);
@@ -114,8 +112,6 @@ const input = new Input(renderer.domElement);
 const scratchPosition = new THREE.Vector3();
 const scratchHeading = new THREE.Vector3();
 const scratchCameraForward = new THREE.Vector3();
-const coneDefaultUp = new THREE.Vector3(0, 1, 0);
-const coneQuaternion = new THREE.Quaternion();
 const clockStart = performance.now();
 
 window.addEventListener('resize', () => {
@@ -129,18 +125,16 @@ const loop = new Loop(
     windController.update(dt, inputState, TEST_BOUNDS, getGroundHeight);
     chaseCamera.fixedUpdate(dt, windController.position, windController.heading, inputState.steerYaw, windController.speed);
     grassField.fixedUpdate(dt, windController.position);
+    petalTrail.fixedUpdate(windController.position);
   },
   (alpha) => {
     windController.getInterpolatedPosition(alpha, scratchPosition);
     windController.getInterpolatedHeading(alpha, scratchHeading);
 
-    player.position.copy(scratchPosition);
-    coneQuaternion.setFromUnitVectors(coneDefaultUp, scratchHeading);
-    player.quaternion.copy(coneQuaternion);
-
     chaseCamera.render(alpha);
     chaseCamera.camera.getWorldDirection(scratchCameraForward);
     const elapsedTime = (performance.now() - clockStart) / 1000;
+    petalTrail.render(elapsedTime, scratchPosition, alpha);
     grassField.render(elapsedTime, scratchCameraForward, scratchPosition);
     terrain.render(scratchPosition);
 
