@@ -120,8 +120,12 @@ export class Terrain {
     palette: Palette,
   ): THREE.Mesh {
     const vertsPerSide = resolution;
-    const positions = new Float32Array(vertsPerSide * vertsPerSide * 3);
-    const normals = new Float32Array(vertsPerSide * vertsPerSide * 3);
+    // Grid vertices plus one skirt duplicate per perimeter vertex — see the
+    // skirt note below for why those exist.
+    const gridCount = vertsPerSide * vertsPerSide;
+    const skirtCount = vertsPerSide * 4;
+    const positions = new Float32Array((gridCount + skirtCount) * 3);
+    const normals = new Float32Array((gridCount + skirtCount) * 3);
     const scratchNormal = new THREE.Vector3();
 
     for (let j = 0; j < vertsPerSide; j++) {
@@ -149,6 +153,61 @@ export class Terrain {
         const c = a + vertsPerSide;
         const d = c + 1;
         indices.push(a, c, b, b, c, d);
+      }
+    }
+
+    // Skirts: a strip of geometry hanging straight down from every chunk
+    // edge. Adjacent chunks at different LOD resolutions sample their
+    // shared edge at different intervals, so between the coarse chunk's
+    // vertices the two edges disagree by a few centimetres — a T-junction
+    // crack, visible at grazing angles as a bright hairline of sky tracing
+    // the terrain's contour (this was the "fine white lines following the
+    // landscape" report; the analytic-normal fix removed the lighting seam
+    // at these borders but not the geometric gap). Rather than stitching
+    // edge topologies together, each chunk drops a skirt so anything seen
+    // through the crack is skirt, not sky — and because each skirt vertex
+    // copies its parent edge vertex's normal (which also drives the baked
+    // colour in computeSlopeAttributes), the skirt is lit and coloured
+    // identically to the ground it hangs from, making the fill invisible.
+    // Depth: worst-case edge disagreement is the coarse edge's linear
+    // interpolation error, bounded by the highest-frequency octave's
+    // curvature at well under 0.5m for current content — 1.5m is generous
+    // margin, and an implementation constant rather than a feel constant.
+    const SKIRT_DEPTH = 1.5;
+    const gridIndexOf = (i: number, j: number): number => j * vertsPerSide + i;
+    // Perimeter as (i, j) pairs per edge: north (j=0), south (j=max),
+    // west (i=0), east (i=max). Corners are duplicated across edges,
+    // which is harmless — coincident verts, degenerate-free quads.
+    const edges: Array<Array<[number, number]>> = [
+      Array.from({ length: vertsPerSide }, (_, i) => [i, 0]),
+      Array.from({ length: vertsPerSide }, (_, i) => [i, vertsPerSide - 1]),
+      Array.from({ length: vertsPerSide }, (_, j) => [0, j]),
+      Array.from({ length: vertsPerSide }, (_, j) => [vertsPerSide - 1, j]),
+    ];
+    let skirtVertex = gridCount;
+    for (const edge of edges) {
+      const firstSkirtOfEdge = skirtVertex;
+      for (const [i, j] of edge) {
+        const top = gridIndexOf(i, j) * 3;
+        const bottom = skirtVertex * 3;
+        positions[bottom] = positions[top]!;
+        positions[bottom + 1] = positions[top + 1]! - SKIRT_DEPTH;
+        positions[bottom + 2] = positions[top + 2]!;
+        normals[bottom] = normals[top]!;
+        normals[bottom + 1] = normals[top + 1]!;
+        normals[bottom + 2] = normals[top + 2]!;
+        skirtVertex++;
+      }
+      for (let k = 0; k < edge.length - 1; k++) {
+        const [i0, j0] = edge[k]!;
+        const [i1, j1] = edge[k + 1]!;
+        const topA = gridIndexOf(i0, j0);
+        const topB = gridIndexOf(i1, j1);
+        const bottomA = firstSkirtOfEdge + k;
+        const bottomB = firstSkirtOfEdge + k + 1;
+        // The material renders double-sided (see buildMaterial), so quad
+        // winding doesn't need to differ per edge orientation.
+        indices.push(topA, bottomA, topB, topB, bottomA, bottomB);
       }
     }
 
@@ -217,6 +276,11 @@ export class Terrain {
     const fadeBand = GRASS.EDGE_FADE_BAND;
 
     return new THREE.ShaderMaterial({
+      // Double-sided so the chunk-edge skirts (see buildChunkMesh) render
+      // from any viewing angle without per-edge winding bookkeeping. The
+      // heightfield itself almost never presents a backface, so the
+      // culling this gives up costs effectively nothing.
+      side: THREE.DoubleSide,
       vertexShader: `${noiseSource}\n${terrainVertSource}`,
       fragmentShader: `${noiseSource}\n${terrainFragSource}`,
       uniforms: {
