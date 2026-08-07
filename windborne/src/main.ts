@@ -6,6 +6,8 @@ import { PetalTrail } from './player/PetalTrail';
 import { ChaseCamera } from './player/ChaseCamera';
 import { Terrain, type TerrainConfig } from './world/Terrain';
 import { GrassField } from './world/GrassField';
+import { VitalityField } from './world/VitalityField';
+import { FlowerField, type FlowerPlacement } from './world/FlowerField';
 import { getPalette, paletteColor } from './config/palettes';
 import { POST } from './config/tuning';
 
@@ -94,15 +96,57 @@ terrain.setLighting(sunDirection, sunColor, palette.sky.sunIntensity, ambientCol
 
 const getGroundHeight = terrain.getHeightAt.bind(terrain);
 
+// The vitality field: the level starts dead, blooms splat life back in,
+// and grass + terrain both read the same texture (PRD §5.4).
+const vitalityField = new VitalityField(GENERATION_BOUNDS);
+grassField.setVitality(vitalityField.texture, vitalityField.boundsMin, vitalityField.boundsSize);
+grassField.sampleVitality = (x, z) => vitalityField.sampleAt(x, z);
+terrain.setVitality(vitalityField.texture, vitalityField.boundsMin, vitalityField.boundsSize);
+
 // The player is the lead petal of the trail (PRD §5.2) — this replaces
 // the placeholder cone from Phases 0–1.
 const petalTrail = new PetalTrail(palette, TEST_TERRAIN_CONFIG.seed);
+petalTrail.setLighting(sunDirection, sunColor, palette.sky.sunIntensity, ambientColor, palette.sky.ambientIntensity);
 scene.add(petalTrail.mesh);
+
+// ---------------------------------------------------------------------------
+// TEMPORARY flower placement — NOT level content. Flower placement is
+// authored by Patrick with the Phase 3a tool; this is an obviously
+// artificial test line (per the working agreement) so Phase 2's systems
+// can be exercised: a gentle S-curve of flowers along the initial flight
+// path, species cycling so the trail collects mixed colours.
+// ---------------------------------------------------------------------------
+const TEMP_FLOWER_LINE: FlowerPlacement[] = [];
+{
+  const species = ['pink', 'yellow', 'white', 'pink', 'yellow', 'lavender'];
+  for (let i = 0; i < 48; i++) {
+    TEMP_FLOWER_LINE.push({
+      x: Math.sin(i * 0.35) * 14,
+      z: -22 - i * 4.5,
+      species: species[i % species.length]!,
+    });
+  }
+}
+const flowerField = new FlowerField(TEMP_FLOWER_LINE, palette, getGroundHeight, GENERATION_BOUNDS);
+flowerField.setLighting(sunDirection, sunColor, palette.sky.sunIntensity, ambientColor, palette.sky.ambientIntensity);
+scene.add(flowerField.mesh);
 
 const windController = new WindController();
 const spawnGroundY = terrain.getHeightAt(0, 0);
 windController.setPosition(0, spawnGroundY + 15, 0);
 windController.setHeading(0, 0, -1);
+
+// Bloom consequences (PRD §5.3): a petal joins the trail, the trail's
+// pull on flight speed grows, and life splats into the vitality field.
+// The chime joins this list in Phase 4.
+flowerField.onBloom = (worldPosition, petalColor) => {
+  petalTrail.spawnPetal(worldPosition, petalColor);
+  windController.petalCount = petalTrail.count;
+  vitalityField.splat(worldPosition.x, worldPosition.z);
+  // Refresh per-blade vitality heights right away (colour needs nothing —
+  // the grass fragment shader samples the field texture directly).
+  grassField.requestRebuild();
+};
 
 const chaseCamera = new ChaseCamera(window.innerWidth / window.innerHeight);
 chaseCamera.teleport(windController.position, windController.heading);
@@ -126,6 +170,7 @@ const loop = new Loop(
     chaseCamera.fixedUpdate(dt, windController.position, windController.heading, inputState.steerYaw, windController.speed);
     grassField.fixedUpdate(dt, windController.position);
     petalTrail.fixedUpdate(windController.position);
+    flowerField.fixedUpdate(windController.position);
   },
   (alpha) => {
     windController.getInterpolatedPosition(alpha, scratchPosition);
@@ -135,12 +180,17 @@ const loop = new Loop(
     chaseCamera.camera.getWorldDirection(scratchCameraForward);
     const elapsedTime = (performance.now() - clockStart) / 1000;
     petalTrail.render(elapsedTime, scratchPosition, alpha);
+    flowerField.render(elapsedTime);
     grassField.render(elapsedTime, scratchCameraForward, scratchPosition);
     terrain.render(scratchPosition);
 
     renderer.render(scene, chaseCamera.camera);
 
-    perfHUD?.setInstanceCounts({ grass: grassField.getVisibleInstanceCount() });
+    perfHUD?.setInstanceCounts({
+      grass: grassField.getVisibleInstanceCount(),
+      petals: petalTrail.count + 1,
+      flowers: flowerField.mesh.count,
+    });
     perfHUD?.update(renderer);
   },
 );
