@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
-import { PERF, PETALS } from '../config/tuning';
+import { PERF, PETALS, TERRAIN } from '../config/tuning';
 import { paletteColor, type Palette } from '../config/palettes';
 import { mulberry32 } from '../core/Random';
+import petalVertSource from '../render/shaders/petal.vert.glsl?raw';
+import petalFragSource from '../render/shaders/petal.frag.glsl?raw';
 
 /**
  * The petal trail (PRD §5.2): the player is one lead petal, and every
@@ -26,6 +28,8 @@ export class PetalTrail {
   /** Number of trail petals (excludes the lead). WindController's speed
    *  bonus reads this via main.ts after each spawn. */
   count = 0;
+
+  private readonly material: THREE.ShaderMaterial;
 
   private readonly ringCapacity: number;
   private readonly ringPositions: Float32Array; // xyz per fixed step
@@ -95,11 +99,25 @@ export class PetalTrail {
     }
     geometry.computeVertexNormals();
 
-    const material = new THREE.MeshStandardMaterial({
+    // Custom material for the shared wrap-lighting model — see the note
+    // in petal.vert.glsl for why a stock material rendered petals navy.
+    this.material = new THREE.ShaderMaterial({
       side: THREE.DoubleSide,
-      roughness: 0.7,
-      metalness: 0,
+      vertexShader: petalVertSource,
+      fragmentShader: petalFragSource,
+      uniforms: {
+        uSunDirection: { value: new THREE.Vector3(0, 1, 0) },
+        uSunColor: { value: new THREE.Color(0xffffff) },
+        uSunIntensity: { value: 1.0 },
+        uAmbientColor: { value: new THREE.Color(0xffffff) },
+        uAmbientIntensity: { value: 0.5 },
+        uLightWrap: { value: TERRAIN.LIGHT_WRAP },
+        uFogColor: { value: paletteColor(palette.fog.color) },
+        uFogNear: { value: palette.fog.near },
+        uFogFar: { value: palette.fog.far },
+      },
     });
+    const material = this.material;
 
     // Slot 0 is the lead petal, so capacity is MAX_PETALS + 1.
     this.mesh = new THREE.InstancedMesh(geometry, material, max + 1);
@@ -117,6 +135,14 @@ export class PetalTrail {
     const lead = paletteColor(palette.flowers['pink']?.color ?? 0xf2a0c4);
     this.mesh.setColorAt(0, lead);
     for (let i = 0; i < max; i++) this.mesh.setColorAt(i + 1, lead);
+  }
+
+  setLighting(sunDirection: THREE.Vector3, sunColor: THREE.Color, sunIntensity: number, ambientColor: THREE.Color, ambientIntensity: number): void {
+    (this.material.uniforms.uSunDirection!.value as THREE.Vector3).copy(sunDirection);
+    (this.material.uniforms.uSunColor!.value as THREE.Color).copy(sunColor);
+    this.material.uniforms.uSunIntensity!.value = sunIntensity;
+    (this.material.uniforms.uAmbientColor!.value as THREE.Color).copy(ambientColor);
+    this.material.uniforms.uAmbientIntensity!.value = ambientIntensity;
   }
 
   /** Record the lead petal's position once per fixed step. */
