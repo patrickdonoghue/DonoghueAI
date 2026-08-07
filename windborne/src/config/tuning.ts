@@ -450,9 +450,14 @@ export const WIND = {
   BASE_STRENGTH: 0.35,
 
   /** Two noise layers. Frequency is in cycles per metre, speed in m/s.
-   *  Layer 1 is the broad sway, layer 2 the fine chatter. */
+   *  Layer 1 is the broad sway, layer 2 the fine chatter.
+   *  Layer 2's temporal frequency is speed/wavelength, not speed alone —
+   *  at frequency 0.28 (wavelength ~3.6m) the old speed of 5.0 scrolled a
+   *  full cycle every ~0.7s, reading as frenetic jitter riding on top of
+   *  the slower sway rather than fine chatter. Lowered speed and amplitude
+   *  together so it's still there as texture but doesn't dominate. */
   LAYER_1: { frequency: 0.06, amplitude: 0.6, speed: 2.2 },
-  LAYER_2: { frequency: 0.28, amplitude: 0.3, speed: 5.0 },
+  LAYER_2: { frequency: 0.28, amplitude: 0.18, speed: 2.5 },
 
   /** Big gust waves that visibly travel across the field. These are what
    *  make wind legible at a distance, and they are the difference between

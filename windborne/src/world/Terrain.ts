@@ -71,6 +71,25 @@ export class Terrain {
     return height;
   }
 
+  /** Surface normal from the height field's own gradient (central finite
+   *  differences), not from mesh topology. Adjacent chunks near a LOD
+   *  boundary can differ a lot in resolution (65 vs 33 vs 17 verts/side —
+   *  see TERRAIN.RESOLUTION_*), so `computeVertexNormals()` produces a
+   *  different normal on either side of that boundary for the exact same
+   *  physical point, purely from how densely each chunk happens to be
+   *  triangulated there. Under directional lighting that reads as a thin
+   *  bright seam tracing the boundary — worse the more the terrain
+   *  undulates there, since that's exactly where the two chunks'
+   *  triangulations diverge most. An analytic normal is a pure function of
+   *  (x, z), so both chunks compute the identical value at a shared edge
+   *  regardless of local triangle density, and the seam disappears. */
+  private getNormalAt(x: number, z: number, out: THREE.Vector3): THREE.Vector3 {
+    const eps = 0.1;
+    const dhdx = (this.getHeightAt(x + eps, z) - this.getHeightAt(x - eps, z)) / (2 * eps);
+    const dhdz = (this.getHeightAt(x, z + eps) - this.getHeightAt(x, z - eps)) / (2 * eps);
+    return out.set(-dhdx, 1, -dhdz).normalize();
+  }
+
   private buildChunks(palette: Palette): void {
     const { min, max } = this.config.bounds;
     const chunkSize = TERRAIN.CHUNK_SIZE;
@@ -102,6 +121,8 @@ export class Terrain {
   ): THREE.Mesh {
     const vertsPerSide = resolution;
     const positions = new Float32Array(vertsPerSide * vertsPerSide * 3);
+    const normals = new Float32Array(vertsPerSide * vertsPerSide * 3);
+    const scratchNormal = new THREE.Vector3();
 
     for (let j = 0; j < vertsPerSide; j++) {
       for (let i = 0; i < vertsPerSide; i++) {
@@ -112,6 +133,11 @@ export class Terrain {
         positions[index] = x;
         positions[index + 1] = y;
         positions[index + 2] = z;
+
+        this.getNormalAt(x, z, scratchNormal);
+        normals[index] = scratchNormal.x;
+        normals[index + 1] = scratchNormal.y;
+        normals[index + 2] = scratchNormal.z;
       }
     }
 
@@ -128,8 +154,8 @@ export class Terrain {
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geometry.setIndex(indices);
-    geometry.computeVertexNormals();
     this.computeSlopeAttributes(geometry, palette);
 
     const mesh = new THREE.Mesh(geometry, this.material);
