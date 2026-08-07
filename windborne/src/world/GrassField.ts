@@ -54,6 +54,13 @@ export class GrassField {
   private lastRebuildChunkX = Number.NaN;
   private lastRebuildChunkZ = Number.NaN;
 
+  // rebuild() runs inside the fixed step (every ~8m of travel), so its
+  // working objects are pre-allocated here per the zero-allocation frame
+  // loop rule (PRD §10.3) rather than constructed fresh each rebuild.
+  private readonly rebuildRingCounts: number[] = [];
+  private readonly ringBoundingSpheres: THREE.Sphere[] = [];
+  private readonly ringBoundingBoxes: THREE.Box3[] = [];
+
   private readonly trailPositions: THREE.Vector3[] = Array.from({ length: TRAIL_MAX }, () => new THREE.Vector3());
   private readonly trailAges = new Float32Array(TRAIL_MAX);
   private readonly trailWeights = new Float32Array(TRAIL_MAX);
@@ -77,6 +84,17 @@ export class GrassField {
       mesh.count = 0;
       this.ringMeshes.push(mesh);
       this.group.add(mesh);
+
+      // Persistent bounds objects, assigned once — rebuild() only mutates
+      // them in place. See the culling note in rebuild() for why these are
+      // the mesh-level bounds, not geometry-level.
+      this.rebuildRingCounts.push(0);
+      const sphere = new THREE.Sphere(new THREE.Vector3(), 0);
+      const box = new THREE.Box3();
+      this.ringBoundingSpheres.push(sphere);
+      this.ringBoundingBoxes.push(box);
+      mesh.boundingSphere = sphere;
+      mesh.boundingBox = box;
     }
   }
 
@@ -143,7 +161,8 @@ export class GrassField {
   }
 
   private rebuild(playerPosition: THREE.Vector3): void {
-    const ringCounts = new Array<number>(this.ringMeshes.length).fill(0);
+    const ringCounts = this.rebuildRingCounts;
+    ringCounts.fill(0);
     const rings = GRASS.LOD_RINGS;
     const maxRadius = rings[rings.length - 1]?.radius ?? 0;
     const chunkSize = GRASS.CHUNK_SIZE;
@@ -226,12 +245,18 @@ export class GrassField {
       // happened to let the mesh slip through culling at all; the rest of
       // the time the entire ring was being skipped before the GPU ever saw
       // it, independent of ring radii, capacity, or chunk precision.
+      // The Sphere/Box3 objects themselves are pre-allocated in the
+      // constructor and assigned to the mesh once; here they're only
+      // mutated in place (zero-allocation frame loop, PRD §10.3).
       const radius = ring?.radius ?? 0;
-      mesh.boundingSphere = new THREE.Sphere(playerPosition.clone(), radius);
-      mesh.boundingBox = new THREE.Box3(
-        new THREE.Vector3(playerPosition.x - radius, playerPosition.y - radius, playerPosition.z - radius),
-        new THREE.Vector3(playerPosition.x + radius, playerPosition.y + radius, playerPosition.z + radius),
-      );
+      const sphere = this.ringBoundingSpheres[ringIndex];
+      const box = this.ringBoundingBoxes[ringIndex];
+      if (sphere && box) {
+        sphere.center.copy(playerPosition);
+        sphere.radius = radius;
+        box.min.set(playerPosition.x - radius, playerPosition.y - radius, playerPosition.z - radius);
+        box.max.set(playerPosition.x + radius, playerPosition.y + radius, playerPosition.z + radius);
+      }
     }
   }
 
