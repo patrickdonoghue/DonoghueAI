@@ -10,41 +10,38 @@ import { VitalityField } from './world/VitalityField';
 import { FlowerField, type FlowerPlacement } from './world/FlowerField';
 import { getPalette, paletteColor } from './config/palettes';
 import { POST } from './config/tuning';
+import { parseLevel, flattenFlowers } from './level/LevelLoader';
+import dream01Raw from './levels/dream-01.json';
 
 // ---------------------------------------------------------------------------
-// Phase 1: heightfield terrain and instanced grass. No level JSON yet
-// (that's Phase 3) — this bounds box and these noise octaves are a
-// temporary stand-in for real level content, not an authored level.
+// The level (PRD §7.2): authored JSON, edited with the ?edit=1 placement
+// tool, hot-reloaded in dev. Only Dream 1 exists for v0.1.
 // ---------------------------------------------------------------------------
-const TEST_BOUNDS: LevelBounds = { min: [-250, -250], max: [250, 250] };
+const level = parseLevel(dream01Raw);
+const LEVEL_BOUNDS: LevelBounds = level.bounds;
 
-// Terrain and grass are generated over a larger area than TEST_BOUNDS itself.
-// GrassField.rebuild() hard-excludes any chunk that doesn't fit entirely
-// within its bounds (see its own comment) with no fade at all, unlike the
-// LOD ring boundaries — confirmed by a synthetic flight test: ring 0's
-// instance count dropped 78% by x=266, just 16m past the 250 edge, which
-// WindController's boundary steering assist doesn't reliably prevent (it
-// steers, it doesn't clamp). Real authored level bounds with proper edge
-// treatment are Phase 3's job; padding generation well past where a player
-// can realistically end up sidesteps the glitch for this temporary
-// placeholder without pretending to solve level-edge design.
+// Terrain and grass are generated over a larger area than the playable
+// bounds. GrassField.rebuild() hard-excludes any chunk that doesn't fit
+// entirely within its bounds (see its own comment) with no fade at all,
+// unlike the LOD ring boundaries — confirmed by a synthetic flight test:
+// ring 0's instance count dropped 78% just 16m past the boundary, which
+// WindController's steering assist doesn't reliably prevent (it steers,
+// it doesn't clamp). Proper level-edge treatment is future level-design
+// work; padding generation well past where a player can realistically
+// end up sidesteps the glitch without pretending to solve it.
 const GENERATION_PADDING = 150;
 const GENERATION_BOUNDS: LevelBounds = {
-  min: [TEST_BOUNDS.min[0] - GENERATION_PADDING, TEST_BOUNDS.min[1] - GENERATION_PADDING],
-  max: [TEST_BOUNDS.max[0] + GENERATION_PADDING, TEST_BOUNDS.max[1] + GENERATION_PADDING],
+  min: [LEVEL_BOUNDS.min[0] - GENERATION_PADDING, LEVEL_BOUNDS.min[1] - GENERATION_PADDING],
+  max: [LEVEL_BOUNDS.max[0] + GENERATION_PADDING, LEVEL_BOUNDS.max[1] + GENERATION_PADDING],
 };
 
-const TEST_TERRAIN_CONFIG: TerrainConfig = {
-  seed: 20260803,
+const TERRAIN_CONFIG: TerrainConfig = {
+  seed: level.seed,
   bounds: GENERATION_BOUNDS,
-  octaves: [
-    { frequency: 0.006, amplitude: 8.0 },
-    { frequency: 0.02, amplitude: 3.0 },
-    { frequency: 0.06, amplitude: 0.8 },
-  ],
+  octaves: level.terrain.octaves,
 };
 
-const palette = getPalette('meadow-morning');
+const palette = getPalette(level.palette);
 
 const appRoot = document.getElementById('app');
 if (!appRoot) throw new Error('#app root element missing');
@@ -83,11 +80,11 @@ sunLight.position.copy(sunDirection).multiplyScalar(200);
 scene.add(sunLight);
 scene.add(new THREE.AmbientLight(ambientColor, palette.sky.ambientIntensity));
 
-const terrain = new Terrain(TEST_TERRAIN_CONFIG, palette);
+const terrain = new Terrain(TERRAIN_CONFIG, palette);
 scene.add(terrain.group);
 
 const grassField = new GrassField(
-  { seed: TEST_TERRAIN_CONFIG.seed, bounds: GENERATION_BOUNDS, getHeightAt: terrain.getHeightAt.bind(terrain) },
+  { seed: TERRAIN_CONFIG.seed, bounds: GENERATION_BOUNDS, getHeightAt: terrain.getHeightAt.bind(terrain) },
   palette,
 );
 grassField.setLighting(sunDirection, sunColor, palette.sky.sunIntensity, ambientColor, palette.sky.ambientIntensity);
@@ -105,41 +102,31 @@ terrain.setVitality(vitalityField.texture, vitalityField.boundsMin, vitalityFiel
 
 // The player is the lead petal of the trail (PRD §5.2) — this replaces
 // the placeholder cone from Phases 0–1.
-const petalTrail = new PetalTrail(palette, TEST_TERRAIN_CONFIG.seed);
+const petalTrail = new PetalTrail(palette, TERRAIN_CONFIG.seed);
 petalTrail.setLighting(sunDirection, sunColor, palette.sky.sunIntensity, ambientColor, palette.sky.ambientIntensity);
 scene.add(petalTrail.mesh);
 
-// ---------------------------------------------------------------------------
-// TEMPORARY flower placement — NOT level content. Flower placement is
-// authored by Patrick with the Phase 3a tool; this is an obviously
-// artificial test line (per the working agreement) so Phase 2's systems
-// can be exercised: a gentle S-curve of flowers along the initial flight
-// path, species cycling so the trail collects mixed colours.
-// ---------------------------------------------------------------------------
-const TEMP_FLOWER_LINE: FlowerPlacement[] = [];
-{
-  const species = ['pink', 'yellow', 'white', 'pink', 'yellow', 'lavender'];
-  for (let i = 0; i < 48; i++) {
-    TEMP_FLOWER_LINE.push({
-      x: Math.sin(i * 0.35) * 14,
-      z: -22 - i * 4.5,
-      species: species[i % species.length]!,
-    });
-  }
+// Flowers come from the level's authored clusters (the Phase 2 test line
+// is gone — placement now belongs to Patrick and the ?edit=1 tool, which
+// rebuilds this field live as flowers are placed).
+function buildFlowerField(placements: FlowerPlacement[]): FlowerField {
+  const field = new FlowerField(placements, palette, getGroundHeight, GENERATION_BOUNDS);
+  field.setLighting(sunDirection, sunColor, palette.sky.sunIntensity, ambientColor, palette.sky.ambientIntensity);
+  scene.add(field.mesh);
+  return field;
 }
-const flowerField = new FlowerField(TEMP_FLOWER_LINE, palette, getGroundHeight, GENERATION_BOUNDS);
-flowerField.setLighting(sunDirection, sunColor, palette.sky.sunIntensity, ambientColor, palette.sky.ambientIntensity);
-scene.add(flowerField.mesh);
+let flowerField = buildFlowerField(flattenFlowers(level));
 
 const windController = new WindController();
-const spawnGroundY = terrain.getHeightAt(0, 0);
-windController.setPosition(0, spawnGroundY + 15, 0);
-windController.setHeading(0, 0, -1);
+// Spawn from the level: heading is degrees, 0 = +Z (see LevelLoader).
+const spawnHeadingRad = THREE.MathUtils.degToRad(level.spawn.heading);
+windController.setPosition(level.spawn.position[0], level.spawn.position[1], level.spawn.position[2]);
+windController.setHeading(Math.sin(spawnHeadingRad), 0, Math.cos(spawnHeadingRad));
 
 // Bloom consequences (PRD §5.3): a petal joins the trail, the trail's
 // pull on flight speed grows, and life splats into the vitality field.
 // The chime joins this list in Phase 4.
-flowerField.onBloom = (worldPosition, petalColor) => {
+const handleBloom: NonNullable<FlowerField['onBloom']> = (worldPosition, petalColor) => {
   petalTrail.spawnPetal(worldPosition, petalColor);
   windController.petalCount = petalTrail.count;
   vitalityField.splat(worldPosition.x, worldPosition.z);
@@ -147,6 +134,7 @@ flowerField.onBloom = (worldPosition, petalColor) => {
   // the grass fragment shader samples the field texture directly).
   grassField.requestRebuild();
 };
+flowerField.onBloom = handleBloom;
 
 const chaseCamera = new ChaseCamera(window.innerWidth / window.innerHeight);
 chaseCamera.teleport(windController.position, windController.heading);
@@ -166,7 +154,7 @@ window.addEventListener('resize', () => {
 const loop = new Loop(
   (dt) => {
     const inputState = input.poll(dt, windController.heading);
-    windController.update(dt, inputState, TEST_BOUNDS, getGroundHeight);
+    windController.update(dt, inputState, LEVEL_BOUNDS, getGroundHeight);
     chaseCamera.fixedUpdate(dt, windController.position, windController.heading, inputState.steerYaw, windController.speed);
     grassField.fixedUpdate(dt, windController.position);
     petalTrail.fixedUpdate(windController.position);
@@ -183,6 +171,7 @@ const loop = new Loop(
     flowerField.render(elapsedTime);
     grassField.render(elapsedTime, scratchCameraForward, scratchPosition);
     terrain.render(scratchPosition);
+    placementEditor?.update();
 
     renderer.render(scene, chaseCamera.camera);
 
@@ -196,6 +185,7 @@ const loop = new Loop(
 );
 
 let perfHUD: import('./debug/PerfHUD').PerfHUD | undefined;
+let placementEditor: import('./debug/PlacementEditor').PlacementEditor | undefined;
 
 if (import.meta.env.DEV) {
   const [{ PerfHUD }, { TuningPanel }] = await Promise.all([
@@ -206,6 +196,29 @@ if (import.meta.env.DEV) {
   new TuningPanel((enabled) => {
     void input.setTiltEnabled(enabled);
   }, renderer);
+
+  // The placement tool (PRD §7.4): dev-only, ?edit=1. It mutates the
+  // level's working copy and asks for the flower field to be rebuilt.
+  if (new URLSearchParams(window.location.search).get('edit') === '1') {
+    const { PlacementEditor } = await import('./debug/PlacementEditor');
+    placementEditor = new PlacementEditor({
+      level,
+      palette,
+      camera: chaseCamera.camera,
+      terrainGroup: terrain.group,
+      scene,
+      domElement: renderer.domElement,
+      getHeightAt: getGroundHeight,
+      getPlayerPose: () => ({ position: windController.position, heading: windController.heading }),
+      setSteeringFrozen: (frozen) => input.setSteeringFrozen(frozen),
+      onLevelChanged: (changed) => {
+        scene.remove(flowerField.mesh);
+        flowerField.dispose();
+        flowerField = buildFlowerField(flattenFlowers(changed));
+        flowerField.onBloom = handleBloom;
+      },
+    });
+  }
 }
 
 loop.start();

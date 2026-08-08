@@ -36,6 +36,7 @@ const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.m
 export class Input {
   private readonly keys = new Set<string>();
 
+  private steeringFrozen = false;
   private mouseX = 0; // -1..1, screen-space, already deadzoned
   private mouseY = 0;
   private mouseBoost = 0;
@@ -91,6 +92,12 @@ export class Input {
     this.domElement.removeEventListener('touchcancel', this.onTouchEnd);
   }
 
+  /** See the freeze note in poll() — used only by the placement editor
+   *  while a paint stroke is active. */
+  setSteeringFrozen(frozen: boolean): void {
+    this.steeringFrozen = frozen;
+  }
+
   /**
    * Device tilt is opt-in and needs a permission prompt on iOS, which must
    * happen from a user gesture. There is no pause-panel toggle yet
@@ -136,6 +143,20 @@ export class Input {
    * only ever observes, never feeds back.
    */
   poll(dt: number, heading: THREE.Vector3): InputState {
+    // Editor paint mode (PlacementEditor): while a Shift+drag is laying a
+    // flower line, the mouse is a paintbrush, not a rudder — so steering
+    // holds course instead of chasing the brush. Without this, finishing
+    // a paint stroke flings the player wherever the stroke ended. Dev
+    // tool only; nothing in the game itself freezes steering.
+    if (this.steeringFrozen) {
+      this.smoothedYaw = 0;
+      this.smoothedPitch = 0;
+      this.state.desiredDirection.copy(heading);
+      this.state.boost = 0;
+      this.state.steerYaw = 0;
+      return this.state;
+    }
+
     this.rawYaw = 0;
     this.rawPitch = 0;
     this.rawBoost = 0;

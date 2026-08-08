@@ -142,6 +142,14 @@ export class FlowerField {
     }
   }
 
+  /** Release GPU resources. The ?edit=1 placement tool rebuilds the whole
+   *  field on every edit — cheap at level scale, but only if the previous
+   *  incarnation actually lets go of its buffers. */
+  dispose(): void {
+    this.mesh.geometry.dispose();
+    this.material.dispose();
+  }
+
   /** Advance the shared clock the bloom animation runs on. Bloom stamps
    *  use this same clock (captured at the last rendered frame) so the
    *  unfurl always starts from state 0 regardless of sim/render skew. */
