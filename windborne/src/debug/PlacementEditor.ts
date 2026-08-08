@@ -80,6 +80,7 @@ export class PlacementEditor {
   // In-scene helpers: cursor disc, spawn arrow, exit ring.
   private readonly helpers = new THREE.Group();
   private readonly cursorMarker: THREE.Mesh;
+  private readonly cursorMaterial: THREE.MeshBasicMaterial;
   private readonly spawnMarker: THREE.Mesh;
   private readonly exitMarker: THREE.Mesh;
 
@@ -93,10 +94,18 @@ export class PlacementEditor {
     this.clusterCounter = ctx.level.clusters.length;
 
     // Markers are deliberately crude — they're editor chrome, not art.
-    this.cursorMarker = new THREE.Mesh(
-      new THREE.RingGeometry(0.5, 0.7, 24),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthTest: false }),
-    );
+    // The cursor ring doubles as the cluster-state indicator (Patrick's
+    // request): white and steady with no cluster open, green and gently
+    // pulsing while one is recording — eyes are on the ring when placing,
+    // not on the overlay text.
+    this.cursorMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.8,
+      side: THREE.DoubleSide,
+      depthTest: false,
+    });
+    this.cursorMarker = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.7, 24), this.cursorMaterial);
     this.cursorMarker.rotation.x = -Math.PI / 2;
     this.spawnMarker = new THREE.Mesh(
       new THREE.ConeGeometry(0.6, 1.6, 8),
@@ -135,6 +144,14 @@ export class PlacementEditor {
     if (this.cursorValid) {
       this.cursorMarker.position.copy(this.cursorPoint);
       this.cursorMarker.position.y += 0.05;
+    }
+    // Cluster-state indicator on the ring: green pulse = recording.
+    if (this.openClusterId) {
+      this.cursorMaterial.color.setHex(0x5eff8a);
+      this.cursorMaterial.opacity = 0.65 + 0.3 * Math.sin(performance.now() / 180);
+    } else {
+      this.cursorMaterial.color.setHex(0xffffff);
+      this.cursorMaterial.opacity = 0.8;
     }
     if (this.painting) this.tryPaintAtCursor();
   }
@@ -425,11 +442,12 @@ export class PlacementEditor {
     const species = this.speciesIds[this.speciesIndex] ?? '?';
     const color = this.ctx.palette.flowers[species]?.color ?? 0xffffff;
     const total = this.ctx.level.clusters.reduce((sum, c) => sum + c.flowers.length, 0);
-    let open = '—';
+    // ● green = a cluster is open and recording; ○ grey = closed.
+    let open = '<span style="color:#888">○ closed</span>';
     if (this.openClusterId) {
       const count = this.ctx.level.clusters.find((c) => c.id === this.openClusterId)?.flowers.length ?? 0;
       const full = count >= EDITOR.CLUSTER_FLOWER_LIMIT ? ' FULL' : '';
-      open = `${this.openClusterId} (${count}/${EDITOR.CLUSTER_FLOWER_LIMIT}${full})`;
+      open = `<span style="color:#5eff8a">●</span> ${this.openClusterId} (${count}/${EDITOR.CLUSTER_FLOWER_LIMIT}${full})`;
     }
     const swatch = `#${color.toString(16).padStart(6, '0')}`;
     this.overlay.innerHTML =
