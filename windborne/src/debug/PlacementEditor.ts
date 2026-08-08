@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { EDITOR } from '../config/tuning';
 import type { LevelData } from '../level/LevelLoader';
 import type { Palette } from '../config/palettes';
 
@@ -303,6 +304,13 @@ export class PlacementEditor {
       cluster = { id: clusterId, flowers: [] };
       this.ctx.level.clusters.push(cluster);
     }
+    // Named clusters cap out (EDITOR.CLUSTER_FLOWER_LIMIT): a paint stroke
+    // stops placing at the limit, so one drag lays one line's worth. The
+    // overlay flips to FULL — close with C and open the next cluster.
+    if (this.openClusterId && cluster.flowers.length >= EDITOR.CLUSTER_FLOWER_LIMIT) {
+      this.renderOverlay();
+      return;
+    }
     cluster.flowers.push({
       pos: [round2(this.cursorPoint.x), round2(this.cursorPoint.z)],
       species: this.speciesIds[this.speciesIndex] ?? 'pink',
@@ -417,9 +425,12 @@ export class PlacementEditor {
     const species = this.speciesIds[this.speciesIndex] ?? '?';
     const color = this.ctx.palette.flowers[species]?.color ?? 0xffffff;
     const total = this.ctx.level.clusters.reduce((sum, c) => sum + c.flowers.length, 0);
-    const open = this.openClusterId
-      ? `${this.openClusterId} (${this.ctx.level.clusters.find((c) => c.id === this.openClusterId)?.flowers.length ?? 0})`
-      : '—';
+    let open = '—';
+    if (this.openClusterId) {
+      const count = this.ctx.level.clusters.find((c) => c.id === this.openClusterId)?.flowers.length ?? 0;
+      const full = count >= EDITOR.CLUSTER_FLOWER_LIMIT ? ' FULL' : '';
+      open = `${this.openClusterId} (${count}/${EDITOR.CLUSTER_FLOWER_LIMIT}${full})`;
+    }
     const swatch = `#${color.toString(16).padStart(6, '0')}`;
     this.overlay.innerHTML =
       `<span style="display:inline-block;width:10px;height:10px;background:${swatch};margin-right:6px"></span>` +

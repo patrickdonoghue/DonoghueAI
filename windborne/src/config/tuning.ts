@@ -646,6 +646,21 @@ export const PERF = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// EDITOR (the ?edit=1 placement tool — dev only, never ships)
+// ---------------------------------------------------------------------------
+
+export const EDITOR = {
+  /** Maximum flowers in a named cluster (opened with C). A Shift+drag
+   *  paint stroke stops placing when the open cluster reaches this, so a
+   *  drag lays down "one line's worth" and no more — Patrick's request
+   *  after the first authoring session. The PRD's Dream 1 lines are ~15
+   *  flowers, so that's the default. Loose flowers dropped with no
+   *  cluster open are exempt (that bucket is a scratchpad, and silently
+   *  refusing drops there would just read as the tool breaking). */
+  CLUSTER_FLOWER_LIMIT: 15,
+} as const;
+
+// ---------------------------------------------------------------------------
 // POST-PROCESSING
 // ---------------------------------------------------------------------------
 
