@@ -82,6 +82,11 @@ export class Props {
   private trunkVitality!: THREE.InstancedBufferAttribute;
   private readonly canopyMeshes: THREE.InstancedMesh[] = [];
   private readonly canopyVitality: THREE.InstancedBufferAttribute[] = [];
+  /** Measured local height (unit-radius units) of each canopy variant's
+   *  blob. Lumpiness and squash both move this, so it's read off the
+   *  built geometry rather than derived — the trunk length depends on
+   *  it, and guessing produced trunks poking out the top of the foliage. */
+  private readonly canopyLocalHeights: number[] = [];
   private readonly rockMeshes: THREE.InstancedMesh[] = [];
   private readonly rockVitality: THREE.InstancedBufferAttribute[] = [];
   private readonly materials: THREE.ShaderMaterial[] = [];
@@ -122,6 +127,7 @@ export class Props {
       PROPS.CANOPY_LUMPINESS,
       PROPS.CANOPY_SQUASH,
       config.seed ^ 0xa1,
+      this.canopyLocalHeights,
     );
     this.buildVariantMeshes(
       PROPS.ROCK_VARIANTS,
@@ -289,6 +295,15 @@ export class Props {
     for (let i = 0; i < this.trees.length; i++) {
       const tree = this.trees[i]!;
       const height = PROPS.TREE_HEIGHT * tree.scale;
+      const canopyRadius = height * PROPS.CANOPY_RADIUS;
+      const canopyBase = height * PROPS.CANOPY_BASE;
+      // How tall this canopy actually stands, in world units. Varies with
+      // variant (squash) and this instance's own vertical stretch.
+      const canopyHeight =
+        (this.canopyLocalHeights[tree.variant] ?? 2) * canopyRadius * tree.stretchY;
+      // End the trunk INSIDE the foliage rather than at a fixed height,
+      // so a short, broad canopy never leaves a bare pole above it.
+      const trunkHeight = canopyBase + canopyHeight * PROPS.TRUNK_INSET;
 
       // Lean: tilt off vertical about a random horizontal axis, applied
       // after the trunk's own yaw so both trunk and canopy share it.
@@ -298,17 +313,16 @@ export class Props {
       quaternion.copy(leanQuat).multiply(yawQuat);
 
       position.set(tree.x, tree.y, tree.z);
-      scale.set(tree.scale, height, tree.scale);
+      scale.set(tree.scale, trunkHeight, tree.scale);
       matrix.compose(position, quaternion, scale);
       this.trunkMesh.setMatrixAt(i, matrix);
 
-      // Canopy rides the leaned trunk's top, so it sits on the trunk
-      // rather than beside it.
+      // Canopy rides the leaned trunk, so it sits on the trunk rather
+      // than beside it.
       const canopyMesh = this.canopyMeshes[tree.variant];
       const canopyIndex = canopyNext[tree.variant];
       if (canopyMesh && canopyIndex !== undefined) {
-        const canopyRadius = height * PROPS.CANOPY_RADIUS;
-        canopyOffset.set(0, height * PROPS.CANOPY_BASE, 0).applyQuaternion(leanQuat);
+        canopyOffset.set(0, canopyBase, 0).applyQuaternion(leanQuat);
         position.set(tree.x + canopyOffset.x, tree.y + canopyOffset.y, tree.z + canopyOffset.z);
         scale.set(
           canopyRadius * tree.stretchX,
@@ -400,11 +414,15 @@ export class Props {
     baseLumpiness: number,
     baseSquash: number,
     seed: number,
+    localHeightsOut?: number[],
   ): void {
     for (let v = 0; v < variants.length; v++) {
       const [lumpMul, squashMul] = variants[v]!;
       const capacity = Math.max(instances.filter((i) => i.variant === v).length, 1);
       const geometry = this.buildBlobGeometry(baseLumpiness * lumpMul, baseSquash * squashMul, seed + v * 977);
+      // Measured, not derived: lumpiness displaces vertices per-direction,
+      // so the true extent isn't simply 2 x squash.
+      localHeightsOut?.push(geometry.boundingBox?.max.y ?? 2);
       const mesh = this.buildMesh(geometry, palette, partKind, colorDead, colorAlive, capacity);
       meshes.push(mesh);
       attributes.push(this.attachVitality(mesh, capacity));

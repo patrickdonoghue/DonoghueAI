@@ -654,6 +654,9 @@ export const PROPS = {
    *  across the level, which is the whole point (Patrick, authoring
    *  Dream 1: "the landscape needs a few landmarks to know where you
    *  are"). Metres. */
+  /** The tree's size reference, not its literal total height — the
+   *  trunk is sized from the canopy (see TRUNK_INSET) and the canopy
+   *  extends above it, so a tree stands rather taller than this. */
   TREE_HEIGHT: 7.5,
   TREE_HEIGHT_JITTER: 0.35,
   TRUNK_RADIUS: 0.46,
@@ -663,6 +666,12 @@ export const PROPS = {
    *  fraction of tree height. Lower means more overlap and a fuller
    *  tree; too high and it reads as a lollipop on a stick. */
   CANOPY_BASE: 0.5,
+  /** How far INTO the canopy the trunk's top reaches, as a fraction of
+   *  the canopy's own height. The trunk must end inside the foliage —
+   *  a bare pole sticking out of the top reads as a broken model. The
+   *  trunk is sized from the canopy's measured extent rather than a
+   *  fixed height, because that extent varies with variant and stretch. */
+  TRUNK_INSET: 0.45,
   /** Vertical squash of the canopy blob — below 1 gives a crown that's
    *  wider than it is tall, which reads more like a tree than an egg. */
   CANOPY_SQUASH: 0.82,
