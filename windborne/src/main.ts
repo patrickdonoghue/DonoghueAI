@@ -8,6 +8,7 @@ import { Terrain, type TerrainConfig } from './world/Terrain';
 import { GrassField } from './world/GrassField';
 import { VitalityField } from './world/VitalityField';
 import { FlowerField, type FlowerPlacement } from './world/FlowerField';
+import { Props } from './world/Props';
 import { getPalette, paletteColor } from './config/palettes';
 import { POST } from './config/tuning';
 import { parseLevel, flattenFlowers } from './level/LevelLoader';
@@ -100,6 +101,18 @@ grassField.setVitality(vitalityField.texture, vitalityField.boundsMin, vitalityF
 grassField.sampleVitality = (x, z) => vitalityField.sampleAt(x, z);
 terrain.setVitality(vitalityField.texture, vitalityField.boundsMin, vitalityField.boundsSize);
 
+// Trees and rocks: seeded ambient groves for navigation, plus whatever
+// the placement tool authored into level.props. Trees read vitality, so
+// they revive as the ground beneath them blooms.
+const props = new Props(
+  { seed: TERRAIN_CONFIG.seed, bounds: LEVEL_BOUNDS, getHeightAt: getGroundHeight, authored: level.props },
+  palette,
+);
+props.sampleVitality = (x, z) => vitalityField.sampleAt(x, z);
+props.setLighting(sunDirection, sunColor, palette.sky.sunIntensity, ambientColor, palette.sky.ambientIntensity);
+props.refreshVitality();
+scene.add(props.group);
+
 // The player is the lead petal of the trail (PRD §5.2) — this replaces
 // the placeholder cone from Phases 0–1.
 const petalTrail = new PetalTrail(palette, TERRAIN_CONFIG.seed);
@@ -133,6 +146,7 @@ const handleBloom: NonNullable<FlowerField['onBloom']> = (worldPosition, petalCo
   // Refresh per-blade vitality heights right away (colour needs nothing —
   // the grass fragment shader samples the field texture directly).
   grassField.requestRebuild();
+  props.refreshVitality();
 };
 flowerField.onBloom = handleBloom;
 
@@ -179,6 +193,7 @@ const loop = new Loop(
       grass: grassField.getVisibleInstanceCount(),
       petals: petalTrail.count + 1,
       flowers: flowerField.mesh.count,
+      props: props.getInstanceCount(),
     });
     perfHUD?.update(renderer);
   },

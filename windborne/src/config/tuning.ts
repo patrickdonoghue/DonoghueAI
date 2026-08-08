@@ -646,6 +646,65 @@ export const PERF = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// PROPS — trees and rocks (PRD §6.1/§7.2)
+// ---------------------------------------------------------------------------
+
+export const PROPS = {
+  /** Trees are the map's landmarks: tall enough to be recognisable from
+   *  across the level, which is the whole point (Patrick, authoring
+   *  Dream 1: "the landscape needs a few landmarks to know where you
+   *  are"). Metres. */
+  TREE_HEIGHT: 7.5,
+  TREE_HEIGHT_JITTER: 0.35,
+  TRUNK_RADIUS: 0.46,
+  /** Canopy radius as a fraction of total height. */
+  CANOPY_RADIUS: 0.42,
+  /** Height up the trunk where the canopy's underside sits, as a
+   *  fraction of tree height. Lower means more overlap and a fuller
+   *  tree; too high and it reads as a lollipop on a stick. */
+  CANOPY_BASE: 0.5,
+  /** Vertical squash of the canopy blob — below 1 gives a crown that's
+   *  wider than it is tall, which reads more like a tree than an egg. */
+  CANOPY_SQUASH: 0.82,
+  /** How lumpy the canopy blob is, 0 = smooth ball, 1 = very irregular. */
+  CANOPY_LUMPINESS: 0.28,
+
+  ROCK_RADIUS: 1.6,
+  ROCK_RADIUS_JITTER: 0.5,
+  /** Rocks are squashed spheres — 1 is a ball, lower is a boulder. */
+  ROCK_FLATTEN: 0.62,
+  ROCK_LUMPINESS: 0.35,
+
+  /** Ambient scatter. Props are placed on a jittered grid of this cell
+   *  size, then thinned by a low-frequency noise field so trees gather
+   *  into groves instead of dotting the map evenly — a grove on a ridge
+   *  is a landmark, one tree every 40m is wallpaper. */
+  SCATTER_CELL: 34.0,
+  GROVE_FREQUENCY: 0.005,
+  /** Noise above this becomes a grove; raise for fewer, tighter groves.
+   *  Negative values mean most of the map qualifies and the field only
+   *  carves out clearings — which is what a meadow wants. */
+  GROVE_THRESHOLD: -0.2,
+  /** Chance a qualifying cell actually gets a prop. */
+  CELL_FILL_CHANCE: 0.72,
+  /** Of the props placed, the fraction that are rocks rather than trees. */
+  ROCK_FRACTION: 0.3,
+
+  /** Ground-flatness limits, as dot(normal, up) — 1.0 is level ground,
+   *  0.0 is a vertical cliff. Trees need genuinely gentle ground to look
+   *  planted; rocks tolerate a much steeper lie. Raise either value to
+   *  restrict that prop to flatter ground. */
+  TREE_MIN_FLATNESS: 0.8,
+  ROCK_MIN_FLATNESS: 0.5,
+
+  /** Canopy scale when the land is fully dead, as a fraction of its live
+   *  size. Dead trees are bare, sparse silhouettes; blooming the ground
+   *  under them fills them back out (the PRD's `revive-props`, driven by
+   *  the same vitality field as the grass). */
+  CANOPY_DEAD_SCALE: 0.45,
+} as const;
+
+// ---------------------------------------------------------------------------
 // EDITOR (the ?edit=1 placement tool — dev only, never ships)
 // ---------------------------------------------------------------------------
 
