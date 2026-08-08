@@ -88,14 +88,25 @@ export class PetalTrail {
       this.sizes[i] = PETALS.SIZE * (1 + (rng() * 2 - 1) * PETALS.SIZE_JITTER);
     }
 
-    // A petal is a small curved quad: 2×2 segments so the static curl
-    // across its width reads in silhouette — same reasoning as grass
-    // blades being geometry, not textured quads.
-    const geometry = new THREE.PlaneGeometry(1, 1, 2, 2);
+    // Petal silhouette (Patrick's gate feedback: the first pass was
+    // literally a curled square). Start from a finely segmented plane and
+    // shape it: width follows a teardrop profile along the length — narrow
+    // at the stem end, widest past the middle, rounding to a soft tip —
+    // then cup the surface both across (edges curl up) and along (tip
+    // lifts), so it reads as a petal from any tumble angle rather than a
+    // playing card.
+    const geometry = new THREE.PlaneGeometry(1, 1, 4, 6);
     const positions = geometry.getAttribute('position');
     for (let v = 0; v < positions.count; v++) {
-      const x = positions.getX(v);
-      positions.setZ(v, x * x * 0.6); // gentle curl up at the side edges
+      const x = positions.getX(v); // -0.5..0.5 across the petal
+      const y = positions.getY(v); // -0.5 (stem end) .. 0.5 (tip)
+      const t = y + 0.5; // 0 at stem end, 1 at tip
+      // Teardrop width profile: sin^0.8 rises quickly from the stem,
+      // peaks around 60% of the length, closes at the tip.
+      const profile = Math.pow(Math.sin(Math.min(t / 0.62, 1) * Math.PI * 0.5), 0.8) * (t < 0.62 ? 1 : Math.cos(((t - 0.62) / 0.38) * Math.PI * 0.5));
+      positions.setX(v, x * profile);
+      // Cupping: across-width curl plus a lengthwise lift toward the tip.
+      positions.setZ(v, x * x * profile * 0.9 + t * t * 0.35);
     }
     geometry.computeVertexNormals();
 
