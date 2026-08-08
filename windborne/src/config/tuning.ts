@@ -19,10 +19,16 @@ const DEG = Math.PI / 180;
 // ---------------------------------------------------------------------------
 
 export const FLIGHT = {
-  /** Cruising speed with no boost and no petals. ~14 m/s is a fast bicycle —
-   *  quick enough to feel like weather, slow enough to look at things.
+  /** Cruising speed with no boost and no petals. The original 14 m/s is a
+   *  fast bicycle — quick enough to feel like weather, slow enough to look
+   *  at things. Trimmed to 10 at the Phase 2 gate (targeting flowers felt
+   *  hard) as a middle path: Patrick proposed halving to 7, but 7 m/s is
+   *  jogging pace and risks losing the "you are the wind" feel Phase 0
+   *  was accepted on — most of the targeting difficulty is addressed by
+   *  the wider BLOOM.RADIUS and bigger flowers instead. Revisit after a
+   *  flight at this combination.
    *  Higher: more exhilarating, harder to place yourself in the landscape. */
-  BASE_SPEED: 14.0,
+  BASE_SPEED: 10.0,
 
   /** Boost multiplier at full input. 0.9 means boost gets you to ~26.6 m/s.
    *  Higher: bigger gear change, more risk of losing the calm. */
@@ -479,16 +485,17 @@ export const WIND = {
 // ---------------------------------------------------------------------------
 
 export const FLOWERS = {
-  /** Flower proportions, metres. The whole plant is deliberately small —
-   *  flowers read through colour and number, not individual size, and a
-   *  petal quad the player collects is only 0.18m (PETALS.SIZE).
+  /** Flower proportions, metres. Raised 50% across the board at Patrick's
+   *  Phase 2 gate feedback ("the flowers are a little hard to find") —
+   *  they should still read through colour and number more than
+   *  individual size, but a target you can't see isn't a target.
    *  STEM_HEIGHT must clear GRASS.HEIGHT_ALIVE (0.55) or bloomed flowers
    *  vanish into the very grass their own bloom just restored. */
-  STEM_HEIGHT: 0.75,
-  PETAL_LENGTH: 0.16,
-  PETAL_WIDTH: 0.1,
+  STEM_HEIGHT: 1.1,
+  PETAL_LENGTH: 0.24,
+  PETAL_WIDTH: 0.15,
   PETAL_COUNT: 5,
-  CENTER_RADIUS: 0.045,
+  CENTER_RADIUS: 0.07,
 
   /** Unbloomed bud: how folded-up the petals sit (radians from horizontal)
    *  and how squashed the stem is. Bloomed values are the open pose.
@@ -499,15 +506,18 @@ export const FLOWERS = {
 
   /** How dim an unbloomed bud renders relative to its bloomed colour.
    *  Low enough that a field of buds reads as "asleep", high enough that
-   *  buds are still findable against dead grass. */
-  BUD_DIMMING: 0.35,
+   *  buds are still findable against dead grass. Raised from 0.35 with
+   *  the size increase — finding a flower is first about seeing it. */
+  BUD_DIMMING: 0.5,
 } as const;
 
 export const BLOOM = {
   /** How close you must pass to bloom a flower. Generous on purpose —
    *  missing a flower you aimed at is the single most annoying thing
-   *  this game could do. */
-  RADIUS: 2.2,
+   *  this game could do. Raised from 2.2 at the Phase 2 gate: targeting
+   *  felt hard, and widening the hit window attacks that directly
+   *  without slowing the flight down to a walk (see BASE_SPEED). */
+  RADIUS: 3.2,
 
   /** Flower opening animation. */
   ANIM_DURATION: 0.6,
