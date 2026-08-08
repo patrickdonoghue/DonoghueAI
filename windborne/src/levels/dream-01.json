@@ -1,18 +1,988 @@
 {
   "id": "dream-01",
   "seed": 20260803,
-  "bounds": { "min": [-250, -250], "max": [250, 250] },
+  "bounds": {
+    "min": [
+      -250,
+      -250
+    ],
+    "max": [
+      250,
+      250
+    ]
+  },
   "terrain": {
     "octaves": [
-      { "frequency": 0.006, "amplitude": 8 },
-      { "frequency": 0.02, "amplitude": 3 },
-      { "frequency": 0.06, "amplitude": 0.8 }
+      {
+        "frequency": 0.006,
+        "amplitude": 8
+      },
+      {
+        "frequency": 0.02,
+        "amplitude": 3
+      },
+      {
+        "frequency": 0.06,
+        "amplitude": 0.8
+      }
     ],
     "splines": []
   },
   "palette": "meadow-morning",
-  "spawn": { "position": [0, 15, 0], "heading": 180 },
-  "clusters": [],
+  "spawn": {
+    "position": [
+      28.1,
+      -2.38,
+      33.81
+    ],
+    "heading": -26
+  },
+  "clusters": [
+    {
+      "id": "cluster-1",
+      "flowers": [
+        {
+          "pos": [
+            75.05,
+            -62.91
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            79.22,
+            -61.52
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            83.23,
+            -59.66
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            87.49,
+            -58.47
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            91.71,
+            -57.66
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            95.91,
+            -56.1
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            100.15,
+            -54.61
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            104.47,
+            -53.34
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            108.57,
+            -51.45
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            112.8,
+            -49.95
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            116.85,
+            -48.32
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            120.78,
+            -46.74
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            124.6,
+            -45.37
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            128.85,
+            -44.2
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            133.2,
+            -43.1
+          ],
+          "species": "pink"
+        }
+      ]
+    },
+    {
+      "id": "cluster-2",
+      "flowers": [
+        {
+          "pos": [
+            220.94,
+            -108.16
+          ],
+          "species": "yellow"
+        },
+        {
+          "pos": [
+            218.65,
+            -111.9
+          ],
+          "species": "yellow"
+        },
+        {
+          "pos": [
+            217.69,
+            -116.12
+          ],
+          "species": "yellow"
+        },
+        {
+          "pos": [
+            216.5,
+            -120.34
+          ],
+          "species": "yellow"
+        },
+        {
+          "pos": [
+            213.88,
+            -123.74
+          ],
+          "species": "yellow"
+        },
+        {
+          "pos": [
+            210.28,
+            -126.63
+          ],
+          "species": "yellow"
+        },
+        {
+          "pos": [
+            206.37,
+            -128.91
+          ],
+          "species": "yellow"
+        },
+        {
+          "pos": [
+            201.98,
+            -128
+          ],
+          "species": "yellow"
+        },
+        {
+          "pos": [
+            197.5,
+            -128.79
+          ],
+          "species": "yellow"
+        },
+        {
+          "pos": [
+            194.32,
+            -132.16
+          ],
+          "species": "yellow"
+        },
+        {
+          "pos": [
+            189.96,
+            -131.3
+          ],
+          "species": "yellow"
+        }
+      ]
+    },
+    {
+      "id": "cluster-3",
+      "flowers": [
+        {
+          "pos": [
+            -66.4,
+            -101.36
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -66.65,
+            -96.93
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -69.93,
+            -93.97
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -71.36,
+            -89.66
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -71.62,
+            -85.16
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -71.31,
+            -80.65
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -71.05,
+            -76.18
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -70.92,
+            -71.78
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -71.11,
+            -67.25
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -70.76,
+            -62.79
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -70.15,
+            -58.63
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -70.56,
+            -54.16
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -70.78,
+            -49.66
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -70.88,
+            -45.21
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -71.36,
+            -40.72
+          ],
+          "species": "white"
+        }
+      ]
+    },
+    {
+      "id": "cluster-4",
+      "flowers": [
+        {
+          "pos": [
+            -20.15,
+            227.34
+          ],
+          "species": "lavender"
+        },
+        {
+          "pos": [
+            -20.53,
+            222.74
+          ],
+          "species": "lavender"
+        },
+        {
+          "pos": [
+            -21.91,
+            215.75
+          ],
+          "species": "lavender"
+        },
+        {
+          "pos": [
+            -22.71,
+            211.14
+          ],
+          "species": "lavender"
+        },
+        {
+          "pos": [
+            -21.09,
+            215.41
+          ],
+          "species": "lavender"
+        },
+        {
+          "pos": [
+            -19.78,
+            219.81
+          ],
+          "species": "lavender"
+        },
+        {
+          "pos": [
+            -20.73,
+            224.32
+          ],
+          "species": "lavender"
+        },
+        {
+          "pos": [
+            -24.78,
+            226.3
+          ],
+          "species": "lavender"
+        },
+        {
+          "pos": [
+            -25.4,
+            230.76
+          ],
+          "species": "lavender"
+        },
+        {
+          "pos": [
+            -24.83,
+            235.41
+          ],
+          "species": "lavender"
+        },
+        {
+          "pos": [
+            -22.81,
+            239.5
+          ],
+          "species": "lavender"
+        },
+        {
+          "pos": [
+            -21.82,
+            244.47
+          ],
+          "species": "lavender"
+        },
+        {
+          "pos": [
+            -18.86,
+            247.92
+          ],
+          "species": "lavender"
+        },
+        {
+          "pos": [
+            -15.65,
+            251.2
+          ],
+          "species": "lavender"
+        },
+        {
+          "pos": [
+            -13.02,
+            254.94
+          ],
+          "species": "lavender"
+        }
+      ]
+    },
+    {
+      "id": "cluster-5",
+      "flowers": [
+        {
+          "pos": [
+            -102.93,
+            191.06
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -106.89,
+            188.98
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -110.35,
+            186.09
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -114.61,
+            184.61
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -128.82,
+            179.46
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -133.15,
+            177.95
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -136.43,
+            174.67
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -139.74,
+            171.63
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -144.23,
+            172.42
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -148.57,
+            173.32
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -152.89,
+            171.86
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -157.16,
+            170.44
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -161.64,
+            169.38
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -177,
+            159.89
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -181.28,
+            158.04
+          ],
+          "species": "white"
+        }
+      ]
+    },
+    {
+      "id": "unclustered",
+      "flowers": [
+        {
+          "pos": [
+            -99.24,
+            29.68
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -94.58,
+            27.68
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -89.4,
+            26.48
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -84.64,
+            25.51
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -80.13,
+            25.61
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -75.64,
+            26.22
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -71.48,
+            29.33
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -67.5,
+            31.34
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -63.73,
+            34.82
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -61.24,
+            38.77
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -59.45,
+            42.88
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -55.25,
+            45.12
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -50.51,
+            46.34
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -45.6,
+            47.87
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -36.4,
+            50.02
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -31.86,
+            50.43
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -29.38,
+            46.11
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -28.74,
+            41.6
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -30.42,
+            37.43
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -28.52,
+            32.08
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -24.03,
+            31.02
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -20.26,
+            28.27
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -16.25,
+            25.92
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            4.85,
+            25.41
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            9.33,
+            24.17
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            14.06,
+            23.17
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            22.37,
+            23.06
+          ],
+          "species": "pink"
+        }
+      ]
+    },
+    {
+      "id": "cluster-6",
+      "flowers": [
+        {
+          "pos": [
+            -89.66,
+            62.84
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -92.8,
+            60.36
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -96.94,
+            58.79
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -101.42,
+            57.83
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -106.04,
+            57.92
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -110.9,
+            59.22
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -116.67,
+            58.12
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -115.86,
+            62.65
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -116.41,
+            67.21
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -113.94,
+            71.4
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -109.17,
+            72.67
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -104.53,
+            73.65
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -99.98,
+            74.42
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -103.21,
+            77.62
+          ],
+          "species": "pink"
+        },
+        {
+          "pos": [
+            -106.76,
+            74.87
+          ],
+          "species": "pink"
+        }
+      ]
+    },
+    {
+      "id": "cluster-7",
+      "flowers": [
+        {
+          "pos": [
+            -205.69,
+            -35.93
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -208.86,
+            -39.32
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -211.83,
+            -42.74
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -215.49,
+            -46.03
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -219.07,
+            -50.06
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -221.97,
+            -53.58
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -225.12,
+            -57.25
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -227.94,
+            -61.16
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -231.03,
+            -65.44
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -231.13,
+            -69.96
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -227.94,
+            -73.04
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -238.21,
+            -103.4
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -226.62,
+            -76.48
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -238.04,
+            -103.37
+          ],
+          "species": "white"
+        },
+        {
+          "pos": [
+            -234.57,
+            -105.89
+          ],
+          "species": "white"
+        }
+      ]
+    }
+  ],
   "props": [],
-  "exit": null
+  "exit": {
+    "pos": [
+      -66.42,
+      -156.44
+    ],
+    "requires": {
+      "vitality": 0.8
+    }
+  }
 }
