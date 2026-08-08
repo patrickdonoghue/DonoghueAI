@@ -16,14 +16,23 @@ import propFragSource from '../render/shaders/prop.frag.glsl?raw';
  * - **Ambient scatter**: seeded from the level seed and gathered into
  *   groves by a low-frequency noise field, so the meadow has recognisable
  *   features to navigate by without any of it being authored content.
- *   Regenerating from the seed means it is reproducible and costs the
- *   level file nothing.
  * - **Authored props**: whatever the ?edit=1 tool wrote into the level's
- *   `props` array (the Section B dead-tree stand and friends). These are
- *   placed exactly where they were put.
+ *   `props` array. Placed exactly where they were put.
  *
- * Three InstancedMeshes total — trunk, canopy, rock — so the whole system
- * is three draw calls regardless of prop count.
+ * **Avoiding the clone-army look.** Variety comes from three layers,
+ * because scale alone is not enough — a hillside of one blob at assorted
+ * sizes still reads as one blob:
+ *   1. Several distinct base silhouettes per type (PROPS.*_VARIANTS),
+ *      each its own geometry so the low-poly facets keep correct flat
+ *      normals. The geometry is non-indexed, so displacing it in a
+ *      vertex shader instead would leave the shading stale.
+ *   2. Per-instance non-uniform stretch — width and height jittered
+ *      independently, which changes proportion rather than just size.
+ *   3. Per-instance orientation: trees get a small lean off vertical,
+ *      rocks get fully arbitrary rotation.
+ *
+ * Cost is one draw call per (type × variant) plus one for all trunks —
+ * a handful, against a scene budget measured in tens.
  *
  * Trees read the vitality field: on dead land the canopy is a bare,
  * squat, grey silhouette, and blooming the ground beneath fills it back
@@ -37,6 +46,16 @@ interface PropInstance {
   y: number;
   yaw: number;
   scale: number;
+  /** Index into the type's variant table. */
+  variant: number;
+  /** Independent per-axis stretch, so proportion varies, not just size. */
+  stretchX: number;
+  stretchY: number;
+  stretchZ: number;
+  /** Trees: tilt off vertical and the compass direction of that tilt.
+   *  Rocks: reused as two of their three free rotation angles. */
+  lean: number;
+  leanDir: number;
   isRock: boolean;
 }
 
@@ -54,21 +73,27 @@ export class Props {
    *  the grass uses for its per-blade heights. */
   sampleVitality: ((x: number, z: number) => number) | undefined;
 
-  private readonly trunkMesh: THREE.InstancedMesh;
-  private readonly canopyMesh: THREE.InstancedMesh;
-  private readonly rockMesh: THREE.InstancedMesh;
-  private readonly materials: THREE.ShaderMaterial[] = [];
-
+  /** Trees and rocks, each grouped so all instances sharing a variant sit
+   *  in one contiguous run (see buildVariantMeshes). */
   private readonly trees: PropInstance[] = [];
   private readonly rocks: PropInstance[] = [];
-  private readonly treeVitality: THREE.InstancedBufferAttribute;
-  private readonly canopyVitality: THREE.InstancedBufferAttribute;
-  private readonly rockVitality: THREE.InstancedBufferAttribute;
+
+  private trunkMesh!: THREE.InstancedMesh;
+  private trunkVitality!: THREE.InstancedBufferAttribute;
+  private readonly canopyMeshes: THREE.InstancedMesh[] = [];
+  private readonly canopyVitality: THREE.InstancedBufferAttribute[] = [];
+  private readonly rockMeshes: THREE.InstancedMesh[] = [];
+  private readonly rockVitality: THREE.InstancedBufferAttribute[] = [];
+  private readonly materials: THREE.ShaderMaterial[] = [];
 
   constructor(config: PropsConfig, palette: Palette) {
     const noise = createNoise2D(mulberry32(config.seed ^ 0x5eed7 /* distinct stream from terrain */));
     this.collectAmbient(config, noise);
     this.collectAuthored(config);
+    // Group by variant so each variant's instances are contiguous, which
+    // lets one mesh per variant index its slice directly.
+    this.trees.sort((a, b) => a.variant - b.variant);
+    this.rocks.sort((a, b) => a.variant - b.variant);
 
     // Colours are derived from the existing palette rather than added to
     // it — palettes.ts is a reviewed, locked file, and bark/foliage sit
@@ -80,20 +105,40 @@ export class Props {
     const rockAlive = paletteColor(palette.terrain.rock).lerp(paletteColor(palette.grass.aliveBase), 0.18);
     const rockDead = paletteColor(palette.terrain.rock);
 
-    const trunkGeometry = this.buildTrunkGeometry();
-    const canopyGeometry = this.buildBlobGeometry(PROPS.CANOPY_LUMPINESS, PROPS.CANOPY_SQUASH, config.seed ^ 0xa1);
-    const rockGeometry = this.buildBlobGeometry(PROPS.ROCK_LUMPINESS, PROPS.ROCK_FLATTEN, config.seed ^ 0xb2);
+    // Trunks are cylinders — proportion jitter alone varies them enough,
+    // so they all share one mesh.
+    this.trunkMesh = this.buildMesh(this.buildTrunkGeometry(), palette, 0, barkDead, bark, Math.max(this.trees.length, 1));
+    this.trunkVitality = this.attachVitality(this.trunkMesh, Math.max(this.trees.length, 1));
 
-    this.trunkMesh = this.buildMesh(trunkGeometry, palette, 0, barkDead, bark, Math.max(this.trees.length, 1));
-    this.canopyMesh = this.buildMesh(canopyGeometry, palette, 1, foliageDead, foliageAlive, Math.max(this.trees.length, 1));
-    this.rockMesh = this.buildMesh(rockGeometry, palette, 2, rockDead, rockAlive, Math.max(this.rocks.length, 1));
-
-    this.treeVitality = this.attachVitality(this.trunkMesh, Math.max(this.trees.length, 1));
-    this.canopyVitality = this.attachVitality(this.canopyMesh, Math.max(this.trees.length, 1));
-    this.rockVitality = this.attachVitality(this.rockMesh, Math.max(this.rocks.length, 1));
+    this.buildVariantMeshes(
+      PROPS.CANOPY_VARIANTS,
+      this.trees,
+      this.canopyMeshes,
+      this.canopyVitality,
+      palette,
+      1,
+      foliageDead,
+      foliageAlive,
+      PROPS.CANOPY_LUMPINESS,
+      PROPS.CANOPY_SQUASH,
+      config.seed ^ 0xa1,
+    );
+    this.buildVariantMeshes(
+      PROPS.ROCK_VARIANTS,
+      this.rocks,
+      this.rockMeshes,
+      this.rockVitality,
+      palette,
+      2,
+      rockDead,
+      rockAlive,
+      PROPS.ROCK_LUMPINESS,
+      PROPS.ROCK_FLATTEN,
+      config.seed ^ 0xb2,
+    );
 
     this.placeInstances();
-    this.group.add(this.trunkMesh, this.canopyMesh, this.rockMesh);
+    this.group.add(this.trunkMesh, ...this.canopyMeshes, ...this.rockMeshes);
   }
 
   /** Refresh per-instance vitality. Called on every bloom — props are a
@@ -101,22 +146,32 @@ export class Props {
   refreshVitality(): void {
     const sample = this.sampleVitality;
     if (!sample) return;
-    const trunkArray = this.treeVitality.array as Float32Array;
-    const canopyArray = this.canopyVitality.array as Float32Array;
+
+    const trunkArray = this.trunkVitality.array as Float32Array;
     for (let i = 0; i < this.trees.length; i++) {
       const tree = this.trees[i]!;
-      const v = sample(tree.x, tree.z);
-      trunkArray[i] = v;
-      canopyArray[i] = v;
+      trunkArray[i] = sample(tree.x, tree.z);
     }
-    const rockArray = this.rockVitality.array as Float32Array;
-    for (let i = 0; i < this.rocks.length; i++) {
-      const rock = this.rocks[i]!;
-      rockArray[i] = sample(rock.x, rock.z);
+    this.trunkVitality.needsUpdate = true;
+
+    this.refreshVariantVitality(this.trees, this.canopyVitality, sample);
+    this.refreshVariantVitality(this.rocks, this.rockVitality, sample);
+  }
+
+  private refreshVariantVitality(
+    instances: PropInstance[],
+    attributes: THREE.InstancedBufferAttribute[],
+    sample: (x: number, z: number) => number,
+  ): void {
+    const nextIndex = new Array<number>(attributes.length).fill(0);
+    for (const instance of instances) {
+      const attribute = attributes[instance.variant];
+      if (!attribute) continue;
+      const local = nextIndex[instance.variant]!;
+      (attribute.array as Float32Array)[local] = sample(instance.x, instance.z);
+      nextIndex[instance.variant] = local + 1;
     }
-    this.treeVitality.needsUpdate = true;
-    this.canopyVitality.needsUpdate = true;
-    this.rockVitality.needsUpdate = true;
+    for (const attribute of attributes) attribute.needsUpdate = true;
   }
 
   setLighting(sunDirection: THREE.Vector3, sunColor: THREE.Color, sunIntensity: number, ambientColor: THREE.Color, ambientIntensity: number): void {
@@ -138,8 +193,8 @@ export class Props {
   // -------------------------------------------------------------------
 
   /** Jittered grid, thinned into groves by a noise field. Trees avoid
-   *  steep ground, rocks avoid billiard-flat ground — each looks wrong
-   *  where the other belongs. */
+   *  steep ground, rocks tolerate it — each looks wrong where the other
+   *  belongs. */
   private collectAmbient(config: PropsConfig, noise: NoiseFunction2D): void {
     const rng = mulberry32(config.seed ^ 0x9e37);
     const cell = PROPS.SCATTER_CELL;
@@ -188,13 +243,22 @@ export class Props {
     rng: () => number,
     isRock: boolean,
   ): PropInstance {
-    const jitter = isRock ? PROPS.ROCK_RADIUS_JITTER : PROPS.TREE_HEIGHT_JITTER;
+    const sizeJitter = isRock ? PROPS.ROCK_RADIUS_JITTER : PROPS.TREE_HEIGHT_JITTER;
+    const stretchJitter = isRock ? PROPS.ROCK_STRETCH_JITTER : PROPS.TREE_STRETCH_JITTER;
+    const variantCount = isRock ? PROPS.ROCK_VARIANTS.length : PROPS.CANOPY_VARIANTS.length;
+    const jitter = (): number => 1 + (rng() * 2 - 1) * stretchJitter;
     return {
       x,
       z,
       y: config.getHeightAt(x, z),
       yaw: rng() * Math.PI * 2,
-      scale: 1 + (rng() * 2 - 1) * jitter,
+      scale: 1 + (rng() * 2 - 1) * sizeJitter,
+      variant: Math.min(variantCount - 1, Math.floor(rng() * variantCount)),
+      stretchX: jitter(),
+      stretchY: jitter(),
+      stretchZ: jitter(),
+      lean: rng() * (isRock ? Math.PI * 2 : PROPS.TREE_LEAN),
+      leanDir: rng() * Math.PI * 2,
       isRock,
     };
   }
@@ -213,48 +277,78 @@ export class Props {
     const matrix = new THREE.Matrix4();
     const position = new THREE.Vector3();
     const quaternion = new THREE.Quaternion();
+    const leanQuat = new THREE.Quaternion();
+    const yawQuat = new THREE.Quaternion();
     const euler = new THREE.Euler();
     const scale = new THREE.Vector3();
+    const axis = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    const canopyOffset = new THREE.Vector3();
 
+    const canopyNext = new Array<number>(this.canopyMeshes.length).fill(0);
     for (let i = 0; i < this.trees.length; i++) {
       const tree = this.trees[i]!;
       const height = PROPS.TREE_HEIGHT * tree.scale;
-      euler.set(0, tree.yaw, 0);
-      quaternion.setFromEuler(euler);
 
-      // Trunk: unit-height geometry stretched to this tree's height.
+      // Lean: tilt off vertical about a random horizontal axis, applied
+      // after the trunk's own yaw so both trunk and canopy share it.
+      axis.set(Math.cos(tree.leanDir), 0, Math.sin(tree.leanDir));
+      leanQuat.setFromAxisAngle(axis, tree.lean);
+      yawQuat.setFromAxisAngle(up, tree.yaw);
+      quaternion.copy(leanQuat).multiply(yawQuat);
+
       position.set(tree.x, tree.y, tree.z);
       scale.set(tree.scale, height, tree.scale);
       matrix.compose(position, quaternion, scale);
       this.trunkMesh.setMatrixAt(i, matrix);
 
-      // Canopy: a blob sitting at the top of the trunk. Its geometry has
-      // y = 0 at its underside so the shader can scale it about that
-      // point when the land is dead (see prop.vert.glsl).
-      const canopyRadius = height * PROPS.CANOPY_RADIUS;
-      position.set(tree.x, tree.y + height * PROPS.CANOPY_BASE, tree.z);
-      scale.setScalar(canopyRadius);
-      matrix.compose(position, quaternion, scale);
-      this.canopyMesh.setMatrixAt(i, matrix);
+      // Canopy rides the leaned trunk's top, so it sits on the trunk
+      // rather than beside it.
+      const canopyMesh = this.canopyMeshes[tree.variant];
+      const canopyIndex = canopyNext[tree.variant];
+      if (canopyMesh && canopyIndex !== undefined) {
+        const canopyRadius = height * PROPS.CANOPY_RADIUS;
+        canopyOffset.set(0, height * PROPS.CANOPY_BASE, 0).applyQuaternion(leanQuat);
+        position.set(tree.x + canopyOffset.x, tree.y + canopyOffset.y, tree.z + canopyOffset.z);
+        scale.set(
+          canopyRadius * tree.stretchX,
+          canopyRadius * tree.stretchY,
+          canopyRadius * tree.stretchZ,
+        );
+        matrix.compose(position, quaternion, scale);
+        canopyMesh.setMatrixAt(canopyIndex, matrix);
+        canopyNext[tree.variant] = canopyIndex + 1;
+      }
     }
     this.trunkMesh.count = this.trees.length;
-    this.canopyMesh.count = this.trees.length;
     this.trunkMesh.instanceMatrix.needsUpdate = true;
-    this.canopyMesh.instanceMatrix.needsUpdate = true;
+    for (let v = 0; v < this.canopyMeshes.length; v++) {
+      const mesh = this.canopyMeshes[v]!;
+      mesh.count = canopyNext[v] ?? 0;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
 
-    for (let i = 0; i < this.rocks.length; i++) {
-      const rock = this.rocks[i]!;
+    const rockNext = new Array<number>(this.rockMeshes.length).fill(0);
+    for (const rock of this.rocks) {
+      const mesh = this.rockMeshes[rock.variant];
+      const index = rockNext[rock.variant];
+      if (!mesh || index === undefined) continue;
       const radius = PROPS.ROCK_RADIUS * rock.scale;
-      euler.set(tiltFrom(rock.yaw) * 0.3, rock.yaw, tiltFrom(rock.yaw + 1) * 0.3);
+      // Rocks have no up — tumble them freely so no two sit alike.
+      euler.set(rock.lean, rock.yaw, rock.leanDir);
       quaternion.setFromEuler(euler);
       // Sunk slightly so boulders sit IN the ground, not on it.
       position.set(rock.x, rock.y - radius * 0.25, rock.z);
-      scale.setScalar(radius);
+      scale.set(radius * rock.stretchX, radius * rock.stretchY, radius * rock.stretchZ);
       matrix.compose(position, quaternion, scale);
-      this.rockMesh.setMatrixAt(i, matrix);
+      mesh.setMatrixAt(index, matrix);
+      rockNext[rock.variant] = index + 1;
     }
-    this.rockMesh.count = this.rocks.length;
-    this.rockMesh.instanceMatrix.needsUpdate = true;
+    for (let v = 0; v < this.rockMeshes.length; v++) {
+      const mesh = this.rockMeshes[v]!;
+      mesh.count = rockNext[v] ?? 0;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
 
     this.computeStaticBounds();
   }
@@ -265,8 +359,9 @@ export class Props {
    *  the entire grass field vanish earlier in this project. */
   private computeStaticBounds(): void {
     const all = [...this.trees, ...this.rocks];
+    const meshes = [this.trunkMesh, ...this.canopyMeshes, ...this.rockMeshes];
     if (all.length === 0) {
-      for (const mesh of [this.trunkMesh, this.canopyMesh, this.rockMesh]) mesh.frustumCulled = false;
+      for (const mesh of meshes) mesh.frustumCulled = false;
       return;
     }
     const box = new THREE.Box3();
@@ -282,7 +377,7 @@ export class Props {
     }
     const sphere = new THREE.Sphere();
     box.getBoundingSphere(sphere);
-    for (const mesh of [this.trunkMesh, this.canopyMesh, this.rockMesh]) {
+    for (const mesh of meshes) {
       mesh.boundingBox = box.clone();
       mesh.boundingSphere = sphere.clone();
     }
@@ -291,6 +386,30 @@ export class Props {
   // -------------------------------------------------------------------
   // Geometry and material
   // -------------------------------------------------------------------
+
+  /** One mesh per shape variant, sized to how many instances chose it. */
+  private buildVariantMeshes(
+    variants: readonly (readonly [number, number])[],
+    instances: PropInstance[],
+    meshes: THREE.InstancedMesh[],
+    attributes: THREE.InstancedBufferAttribute[],
+    palette: Palette,
+    partKind: number,
+    colorDead: THREE.Color,
+    colorAlive: THREE.Color,
+    baseLumpiness: number,
+    baseSquash: number,
+    seed: number,
+  ): void {
+    for (let v = 0; v < variants.length; v++) {
+      const [lumpMul, squashMul] = variants[v]!;
+      const capacity = Math.max(instances.filter((i) => i.variant === v).length, 1);
+      const geometry = this.buildBlobGeometry(baseLumpiness * lumpMul, baseSquash * squashMul, seed + v * 977);
+      const mesh = this.buildMesh(geometry, palette, partKind, colorDead, colorAlive, capacity);
+      meshes.push(mesh);
+      attributes.push(this.attachVitality(mesh, capacity));
+    }
+  }
 
   /** Tapered five-sided trunk, unit height, origin at the base. Five
    *  sides rather than a smooth cylinder: the whole game is faceted and
@@ -314,8 +433,9 @@ export class Props {
     const geometry = new THREE.IcosahedronGeometry(1, 1);
     const positions = geometry.getAttribute('position');
     const rng = mulberry32(seed);
-    // Displace by a per-DIRECTION amount so shared vertices stay welded
-    // (displacing per-vertex-index would split the surface open).
+    // Displace by a per-DIRECTION amount so coincident vertices move
+    // together (the geometry is non-indexed, so each face carries its own
+    // copies — displacing per index would tear the surface open).
     const offsets = new Map<string, number>();
     for (let i = 0; i < positions.count; i++) {
       const x = positions.getX(i);
@@ -377,11 +497,4 @@ export class Props {
     mesh.geometry.setAttribute('aVitality', attribute);
     return attribute;
   }
-}
-
-/** Cheap deterministic −1..1 from a float — used for per-rock tilt so
- *  boulders don't all sit perfectly level. */
-function tiltFrom(value: number): number {
-  const hashed = Math.sin(value * 127.1) * 43758.5453;
-  return (hashed - Math.floor(hashed)) * 2 - 1;
 }

@@ -666,14 +666,41 @@ export const PROPS = {
   /** Vertical squash of the canopy blob — below 1 gives a crown that's
    *  wider than it is tall, which reads more like a tree than an egg. */
   CANOPY_SQUASH: 0.82,
-  /** How lumpy the canopy blob is, 0 = smooth ball, 1 = very irregular. */
+  /** How lumpy the canopy blob is, 0 = smooth ball, 1 = very irregular.
+   *  This is the baseline; each SHAPE VARIANT below scales it. */
   CANOPY_LUMPINESS: 0.28,
+
+  /** Distinct base silhouettes per prop type. One shape reused at
+   *  assorted scales reads as clones — these give genuinely different
+   *  outlines, each a separate draw call (a handful, against a scene
+   *  budget measured in tens). Each entry is [lumpiness x, squash x]:
+   *  lumpiness multiplies the baseline irregularity, squash multiplies
+   *  the vertical proportion (below 1 = broader than tall). */
+  CANOPY_VARIANTS: [
+    [0.8, 1.12], // tall and fairly smooth — a young, upright crown
+    [1.15, 0.92], // the middleweight
+    [1.0, 0.72], // broad and spreading
+  ] as const,
+  ROCK_VARIANTS: [
+    [0.85, 1.15], // chunky upright block
+    [1.2, 0.78], // rough boulder
+    [0.7, 0.55], // low flat slab
+  ] as const,
+
+  /** Per-instance stretch, applied independently to width and height, so
+   *  two trees sharing a canopy shape still read as different trees.
+   *  Uniform scaling alone makes a forest of clones at assorted sizes. */
+  TREE_STRETCH_JITTER: 0.22,
+  /** Maximum lean off vertical, radians. Small — leaning trees read as
+   *  wind-shaped; too much and they look felled. */
+  TREE_LEAN: 0.13,
 
   ROCK_RADIUS: 1.6,
   ROCK_RADIUS_JITTER: 0.5,
   /** Rocks are squashed spheres — 1 is a ball, lower is a boulder. */
   ROCK_FLATTEN: 0.62,
   ROCK_LUMPINESS: 0.35,
+  ROCK_STRETCH_JITTER: 0.34,
 
   /** Ambient scatter. Props are placed on a jittered grid of this cell
    *  size, then thinned by a low-frequency noise field so trees gather
